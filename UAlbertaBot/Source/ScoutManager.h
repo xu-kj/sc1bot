@@ -31,6 +31,9 @@ namespace UAlbertaBot
 
 		ScoutManager();
 
+	private:
+		std::unique_ptr<BWAPI::Position> start_position;
+
 	public:
 		void update();
 

@@ -57,6 +57,36 @@ void ScoutManager::moveScouts()
 		return;
 	}
 
+	const auto &current_position = m_workerScout->getPosition();
+	if (!this->start_position)
+	{
+		this->start_position = std::make_unique<BWAPI::Position>(current_position);
+	}
+
+	{
+		const BWAPI::Position target_position(this->start_position->x, this->start_position->y + 100);
+		if (target_position.isValid())
+		{
+			if (current_position == *this->start_position)
+			{
+				Micro::SmartMove(m_workerScout, BWAPI::Position(target_position));
+				m_scoutStatus = "start -> target";
+			}
+			else if (current_position == target_position)
+			{
+				Micro::SmartMove(m_workerScout, BWAPI::Position(*this->start_position));
+				m_scoutStatus = "target -> start";
+			}
+			else if (m_workerScout->getVelocityX() == 0 && m_workerScout->getVelocityY() == 0)
+			{
+				Micro::SmartMove(m_workerScout, BWAPI::Position(*this->start_position));
+				m_scoutStatus = "stuck";
+			}
+			return;
+		}
+	}
+	return;
+
 	const int scoutHP = m_workerScout->getHitPoints() + m_workerScout->getShields();
 
 	gasSteal();
