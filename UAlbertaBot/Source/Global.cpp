@@ -15,35 +15,35 @@ using namespace UAlbertaBot;
 
 Global::Global()
 {
-    init();
+	init();
 }
 
-Global & Global::Instance()
+Global &Global::Instance()
 {
-    static Global instance;
-    return instance;
+	static Global instance;
+	return instance;
 }
 
 void Global::init()
 {
-    reset(m_mapTools);
-    reset(m_informationManager);
-    reset(m_workerManager);
-    reset(m_productionManager);
-    reset(m_baseLocationManager);
-    reset(m_strategyManager);
-    reset(m_scoutManager);
+	reset(m_mapTools);
+	reset(m_informationManager);
+	reset(m_workerManager);
+	reset(m_productionManager);
+	reset(m_baseLocationManager);
+	reset(m_strategyManager);
+	reset(m_scoutManager);
 }
 
 void Global::GameStart()
 {
-    Instance().init();
+	Instance().init();
 }
 
-MapTools &              Global::Map()            { return *get(Instance().m_mapTools);            }
-BaseLocationManager &   Global::Bases()          { return *get(Instance().m_baseLocationManager); }
-InformationManager &    Global::Info()           { return *get(Instance().m_informationManager);  }
-StrategyManager &       Global::Strategy()       { return *get(Instance().m_strategyManager);     }
-WorkerManager &         Global::Workers()        { return *get(Instance().m_workerManager);       }
-ProductionManager &     Global::Production()     { return *get(Instance().m_productionManager);   }
-ScoutManager &          Global::Scout()          { return *get(Instance().m_scoutManager);        }
+MapTools &Global::Map() { return *get(Instance().m_mapTools); }
+BaseLocationManager &Global::Bases() { return *get(Instance().m_baseLocationManager); }
+InformationManager &Global::Info() { return *get(Instance().m_informationManager); }
+StrategyManager &Global::Strategy() { return *get(Instance().m_strategyManager); }
+WorkerManager &Global::Workers() { return *get(Instance().m_workerManager); }
+ProductionManager &Global::Production() { return *get(Instance().m_productionManager); }
+ScoutManager &Global::Scout() { return *get(Instance().m_scoutManager); }

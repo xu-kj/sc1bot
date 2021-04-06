@@ -15,13 +15,13 @@ void UAlbertaBot_BWAPIReconnect()
 {
 	while (!BWAPIClient.connect())
 	{
-		std::this_thread::sleep_for(std::chrono::milliseconds{ 1000 });
+		std::this_thread::sleep_for(std::chrono::milliseconds{1000});
 	}
 }
 
 void UAlbertaBot_PlayGame()
 {
-    PROFILE_FUNCTION();
+	PROFILE_FUNCTION();
 
 	UAlbertaBotModule bot;
 
@@ -29,24 +29,68 @@ void UAlbertaBot_PlayGame()
 	while (BWAPI::BWAPIClient.isConnected() && BWAPI::Broodwar->isInGame())
 	{
 		// Handle each of the events that happened on this frame of the game
-		for (const BWAPI::Event & e : BWAPI::Broodwar->getEvents())
+		for (const BWAPI::Event &e : BWAPI::Broodwar->getEvents())
 		{
 			switch (e.getType())
 			{
-				case BWAPI::EventType::MatchStart:      { bot.onStart();					  break; }
-				case BWAPI::EventType::MatchFrame:      { bot.onFrame();                      break; }
-				case BWAPI::EventType::MatchEnd:        { bot.onEnd(e.isWinner());            break; }
-				case BWAPI::EventType::UnitShow:        { bot.onUnitShow(e.getUnit());        break; }
-				case BWAPI::EventType::UnitHide:        { bot.onUnitHide(e.getUnit());        break; }
-				case BWAPI::EventType::UnitCreate:      { bot.onUnitCreate(e.getUnit());      break; }
-				case BWAPI::EventType::UnitMorph:       { bot.onUnitMorph(e.getUnit());       break; }
-				case BWAPI::EventType::UnitDestroy:     { bot.onUnitDestroy(e.getUnit());     break; }
-				case BWAPI::EventType::UnitRenegade:    { bot.onUnitRenegade(e.getUnit());    break; }
-				case BWAPI::EventType::UnitComplete:    { bot.onUnitComplete(e.getUnit());    break; }
-				case BWAPI::EventType::SendText:        { bot.onSendText(e.getText());        break; }
+			case BWAPI::EventType::MatchStart:
+			{
+				bot.onStart();
+				break;
+			}
+			case BWAPI::EventType::MatchFrame:
+			{
+				bot.onFrame();
+				break;
+			}
+			case BWAPI::EventType::MatchEnd:
+			{
+				bot.onEnd(e.isWinner());
+				break;
+			}
+			case BWAPI::EventType::UnitShow:
+			{
+				bot.onUnitShow(e.getUnit());
+				break;
+			}
+			case BWAPI::EventType::UnitHide:
+			{
+				bot.onUnitHide(e.getUnit());
+				break;
+			}
+			case BWAPI::EventType::UnitCreate:
+			{
+				bot.onUnitCreate(e.getUnit());
+				break;
+			}
+			case BWAPI::EventType::UnitMorph:
+			{
+				bot.onUnitMorph(e.getUnit());
+				break;
+			}
+			case BWAPI::EventType::UnitDestroy:
+			{
+				bot.onUnitDestroy(e.getUnit());
+				break;
+			}
+			case BWAPI::EventType::UnitRenegade:
+			{
+				bot.onUnitRenegade(e.getUnit());
+				break;
+			}
+			case BWAPI::EventType::UnitComplete:
+			{
+				bot.onUnitComplete(e.getUnit());
+				break;
+			}
+			case BWAPI::EventType::SendText:
+			{
+				bot.onSendText(e.getText());
+				break;
+			}
 			}
 		}
-        
+
 		BWAPI::BWAPIClient.update();
 		if (!BWAPI::BWAPIClient.isConnected())
 		{
@@ -58,22 +102,21 @@ void UAlbertaBot_PlayGame()
 	std::cout << "Game Over\n";
 }
 
-
-int main(int argc, char * argv[])
+int main(int argc, char *argv[])
 {
-    PROFILE_FUNCTION();
+	PROFILE_FUNCTION();
 
 	bool exitIfStarcraftShutdown = true;
-    
-    std::cout << "UAlbertaBot - David Churchill\n";
-    std::cout << "https://github.com/davechurchill/ualbertabot\n\n";
-    std::cout << "Compiled on " << __DATE__ << " @ " << __TIME__ << "\n\n";
 
-    // Initialize SparCraft, the combat simulation package
-    SparCraft::init();
+	std::cout << "UAlbertaBot - David Churchill\n";
+	std::cout << "https://github.com/davechurchill/ualbertabot\n\n";
+	std::cout << "Compiled on " << __DATE__ << " @ " << __TIME__ << "\n\n";
 
-    // Initialize BOSS, the Build Order Search System
-    BOSS::init();
+	// Initialize SparCraft, the combat simulation package
+	SparCraft::init();
+
+	// Initialize BOSS, the Build Order Search System
+	BOSS::init();
 
 	size_t gameCount = 0;
 	while (true)

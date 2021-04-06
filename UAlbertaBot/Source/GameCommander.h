@@ -7,60 +7,56 @@
 namespace UAlbertaBot
 {
 
-
-class UnitToAssign
-{
-public:
-
-	BWAPI::Unit unit;
-	bool isAssigned = false;
-
-	UnitToAssign(BWAPI::Unit u)
-        : unit(u)
+	class UnitToAssign
 	{
-		
-	}
-};
+	public:
+		BWAPI::Unit unit;
+		bool isAssigned = false;
 
-class GameCommander 
-{
-	CombatCommander m_combatCommander;
-	TimerManager    m_timerManager;
+		UnitToAssign(BWAPI::Unit u)
+			: unit(u)
+		{
+		}
+	};
 
-	BWAPI::Unitset  m_validUnits;
-	BWAPI::Unitset  m_combatUnits;
-	BWAPI::Unitset  m_scoutUnits;
+	class GameCommander
+	{
+		CombatCommander m_combatCommander;
+		TimerManager m_timerManager;
 
-    bool            m_initialScoutSet = false;
+		BWAPI::Unitset m_validUnits;
+		BWAPI::Unitset m_combatUnits;
+		BWAPI::Unitset m_scoutUnits;
 
-    void assignUnit(BWAPI::Unit unit, BWAPI::Unitset & set);
-	bool isAssigned(BWAPI::Unit unit) const;
+		bool m_initialScoutSet = false;
 
-public:
+		void assignUnit(BWAPI::Unit unit, BWAPI::Unitset &set);
+		bool isAssigned(BWAPI::Unit unit) const;
 
-	GameCommander();
+	public:
+		GameCommander();
 
-	void update();
+		void update();
 
-	void handleUnitAssignments();
-	void setValidUnits();
-	void setScoutUnits();
-	void setCombatUnits();
+		void handleUnitAssignments();
+		void setValidUnits();
+		void setScoutUnits();
+		void setCombatUnits();
 
-	void drawDebugInterface();
-    void drawGameInformation(int x, int y);
+		void drawDebugInterface();
+		void drawGameInformation(int x, int y);
 
-	BWAPI::Unit getFirstSupplyProvider();
-	BWAPI::Unit getClosestUnitToTarget(BWAPI::UnitType type, BWAPI::Position target);
-	BWAPI::Unit getClosestWorkerToTarget(BWAPI::Position target);
+		BWAPI::Unit getFirstSupplyProvider();
+		BWAPI::Unit getClosestUnitToTarget(BWAPI::UnitType type, BWAPI::Position target);
+		BWAPI::Unit getClosestWorkerToTarget(BWAPI::Position target);
 
-	void onUnitShow(BWAPI::Unit unit);
-	void onUnitHide(BWAPI::Unit unit);
-	void onUnitCreate(BWAPI::Unit unit);
-	void onUnitComplete(BWAPI::Unit unit);
-	void onUnitRenegade(BWAPI::Unit unit);
-	void onUnitDestroy(BWAPI::Unit unit);
-	void onUnitMorph(BWAPI::Unit unit);
-};
+		void onUnitShow(BWAPI::Unit unit);
+		void onUnitHide(BWAPI::Unit unit);
+		void onUnitCreate(BWAPI::Unit unit);
+		void onUnitComplete(BWAPI::Unit unit);
+		void onUnitRenegade(BWAPI::Unit unit);
+		void onUnitDestroy(BWAPI::Unit unit);
+		void onUnitMorph(BWAPI::Unit unit);
+	};
 
 }

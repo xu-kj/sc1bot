@@ -6,22 +6,34 @@
 namespace UAlbertaBot
 {
 
-class TimerManager
-{
-    std::vector<BOSS::Timer> m_timers;
-    std::vector<std::string> m_timerNames;
-    int                      m_barWidth = 0;
+	class TimerManager
+	{
+		std::vector<BOSS::Timer> m_timers;
+		std::vector<std::string> m_timerNames;
+		int m_barWidth = 0;
 
-public:
+	public:
+		enum Type
+		{
+			All,
+			Worker,
+			Production,
+			Building,
+			Combat,
+			Scout,
+			InformationManager,
+			MapGrid,
+			MapTools,
+			Search,
+			NumTypes
+		};
 
-    enum Type { All, Worker, Production, Building, Combat, Scout, InformationManager, MapGrid, MapTools, Search, NumTypes };
+		TimerManager();
 
-    TimerManager();
-
-    void startTimer(const TimerManager::Type t);
-    void stopTimer(const TimerManager::Type t);
-    void displayTimers(int x, int y);
-    double getTotalElapsed();
-};
+		void startTimer(const TimerManager::Type t);
+		void stopTimer(const TimerManager::Type t);
+		void displayTimers(int x, int y);
+		double getTotalElapsed();
+	};
 
 }
