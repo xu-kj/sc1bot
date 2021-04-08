@@ -29,6 +29,52 @@ UAlbertaBotModule::UAlbertaBotModule()
 // This gets called when the bot starts!
 void UAlbertaBotModule::onStart()
 {
+    const char red = '\x08';
+    const char green = '\x07';
+    const char white = '\x04';
+    BWAPI::Unitset units = BWAPI::Broodwar->self()->getUnits();
+    BWAPI::Broodwar->drawBoxScreen(0, 0, 450, 100, BWAPI::Colors::Black, true);
+    BWAPI::Broodwar->setTextSize(BWAPI::Text::Size::Huge);
+    BWAPI::Broodwar->drawTextScreen(10, 30, "The game start with %d units", white, units.size());
+    // Save the dancer
+    for (auto unit = units.begin(); unit != units.end();  unit++) {
+        // Get the first unit that is a worker
+        // Exceptions: Terran base, which also can build
+        if ((*unit)->canBuild() && (*unit)->canAttack()) {
+            this->dancer = *unit;
+            break;
+        }
+    }
+
+    int x = this->dancer->getPosition().x;
+    int y = this->dancer->getPosition().y;
+    BWAPI::Broodwar->drawTextScreen(10, 45, "The first unit is of type %d at (%d, %d)", white, (*units.begin())->getType(), x, y);
+
+    const int dist = 150;
+    BWAPI::Position cornerA;
+    // Test with Map: Baekmagoji1.2
+    // Check if the spawn location is in upper right corner or bottom left corner
+    if (x < 1500 && y > 1500) {
+        // Bottom left corner - Move up
+        cornerA = BWAPI::Position(x, y - dist);
+        this->cornerLocations.push_back(cornerA);
+        this->cornerLocations.push_back(BWAPI::Position(cornerA.x + dist, cornerA.y));
+        this->cornerLocations.push_back(BWAPI::Position(cornerA.x + dist, cornerA.y - dist));
+        this->cornerLocations.push_back(BWAPI::Position(cornerA.x, cornerA.y - dist));
+    }
+    else {
+        // Upper right corner - Move down
+        cornerA = BWAPI::Position(x, y + dist);
+        this->cornerLocations.push_back(cornerA);
+        this->cornerLocations.push_back(BWAPI::Position(cornerA.x - dist, cornerA.y));
+        this->cornerLocations.push_back(BWAPI::Position(cornerA.x - dist, cornerA.y + dist));
+        this->cornerLocations.push_back(BWAPI::Position(cornerA.x, cornerA.y + dist));
+    }
+    BWAPI::Broodwar->drawLine(BWAPI::CoordinateType::Map, x, y, cornerA.x, cornerA.y, green);
+    this->targetCornerLocationIdx = 0;
+    this->dancer->move(this->cornerLocations[this->targetCornerLocationIdx]);
+
+    /*
     // Parse the bot's configuration file if it has one, change this file path to where your config file is
     // Any relative path name will be relative to Starcraft installation folder
     ParseUtils::ParseConfigFile(Config::ConfigFile::ConfigFileLocation);
@@ -61,16 +107,18 @@ void UAlbertaBotModule::onStart()
             Global::Strategy().setLearnedStrategy();
         }
 	}
-
+    */
     //Global::Map().saveMapToFile("map.txt");
 }
 
 void UAlbertaBotModule::onEnd(bool isWinner) 
 {
+    /*
 	if (Config::Modules::UsingGameCommander)
 	{
 		Global::Strategy().onEnd(isWinner);
 	}
+    */
 }
 
 void UAlbertaBotModule::onFrame()
@@ -84,6 +132,31 @@ void UAlbertaBotModule::onFrame()
     const char green = '\x07';
     const char white = '\x04';
 
+    auto position = this->dancer->getPosition();
+    int x = position.x;
+    int y = position.y;
+    BWAPI::Position nextCorner = this->cornerLocations[this->targetCornerLocationIdx];
+    
+    // draw the for edges of the rectangle
+    if (x < 1500 && y > 1500) {
+        // Bottom left corner - Move up
+        BWAPI::Broodwar->drawBoxMap(this->cornerLocations[3], this->cornerLocations[1], BWAPI::Colors::Red);
+    }
+    else {
+        // Upper right corner - Move down
+        BWAPI::Broodwar->drawBoxMap(this->cornerLocations[1], this->cornerLocations[3], BWAPI::Colors::Red);
+    }
+    // draw the current edge the dancer is traversing
+    BWAPI::Broodwar->drawLine(BWAPI::CoordinateType::Map, x, y, nextCorner.x, nextCorner.y, BWAPI::Colors::Green);
+
+    // Take the inertia into consideration, after the new move command is issued, the unit will still move a little bit towards the old target position
+    if (this->dancer->getDistance(this->cornerLocations[this->targetCornerLocationIdx]) < 5) {
+        // The dancer has reached a corner, move to the next one
+        this->targetCornerLocationIdx = (this->targetCornerLocationIdx + 1) % 4;
+        this->dancer->move(this->cornerLocations[this->targetCornerLocationIdx]);
+    }
+
+    /*
     if (!Config::ConfigFile::ConfigFileFound)
     {
         BWAPI::Broodwar->drawBoxScreen(0,0,450,100, BWAPI::Colors::Black, true);
@@ -112,6 +185,7 @@ void UAlbertaBotModule::onFrame()
 	{ 
 		m_gameCommander.update(); 
 	}
+    */
 
     if (Config::Modules::UsingAutoObserver)
     {

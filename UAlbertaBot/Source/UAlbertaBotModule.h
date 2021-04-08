@@ -12,6 +12,10 @@ class UAlbertaBotModule
 	GameCommander m_gameCommander;
     AutoObserver  m_autoObserver;
 
+	// Draw a rectangle
+	BWAPI::Unit dancer;
+	uint32_t targetCornerLocationIdx;
+	std::vector<BWAPI::Position> cornerLocations;
 public:
 
 	UAlbertaBotModule();
