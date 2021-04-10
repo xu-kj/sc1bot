@@ -1,4 +1,4 @@
-/* 
+/*
  +----------------------------------------------------------------------+
  | UAlbertaBot                                                          |
  +----------------------------------------------------------------------+
@@ -20,6 +20,137 @@
 #include "MapTools.h"
 
 using namespace UAlbertaBot;
+
+struct ReservedResources
+{
+	int minerals = 400;
+	int gas = 0;
+} reserved;
+
+struct Strategy
+{
+	int stage = 0;
+} strategy;
+
+void reserveMinerals(int minerals)
+{
+	reserved.minerals += minerals;
+}
+
+int getFreeMinerals()
+{
+	return BWAPI::Broodwar->self()->minerals() - reserved.minerals;
+}
+
+bool trainSCV()
+{
+	const auto &units = BWAPI::Broodwar->self()->getUnits();
+	for (const auto &unit : units)
+	{
+		const auto unitType = unit->getType();
+		if (!unitType.isBuilding() || !unitType.isResourceDepot())
+		{
+			continue;
+		}
+
+		if (!unit->isIdle())
+		{
+			continue;
+		}
+
+		const auto workerType = unitType.getRace().getWorker();
+		if (!unit->train(workerType))
+		{
+			auto lastErr = BWAPI::Broodwar->getLastError();
+		}
+		else
+		{
+			return true;
+		}
+		break;
+	}
+	return false;
+}
+
+bool trainMarine()
+{
+	const auto &units = BWAPI::Broodwar->self()->getUnits();
+	for (const auto &unit : units)
+	{
+		const auto unitType = unit->getType();
+		if (!unitType.isBuilding() || unitType != BWAPI::UnitTypes::Terran_Barracks)
+		{
+			continue;
+		}
+
+		if (!unit->isIdle())
+		{
+			continue;
+		}
+
+		if (!unit->train(BWAPI::UnitTypes::Terran_Marine))
+		{
+			auto lastErr = BWAPI::Broodwar->getLastError();
+		}
+		else
+		{
+			return true;
+		}
+		break;
+	}
+	return false;
+}
+
+void buildBuilding(BWAPI::UnitType buildingType)
+{
+	const auto &units = BWAPI::Broodwar->self()->getUnits();
+	for (auto &unit : units)
+	{
+		auto unitType = unit->getType();
+		if (!unitType.isWorker())
+		{
+			continue;
+		}
+
+		if (unit->isConstructing())
+		{
+			continue;
+		}
+
+		auto targetBuildLocation = BWAPI::Broodwar->getBuildLocation(buildingType, unit->getTilePosition());
+		if (!unit->build(buildingType, targetBuildLocation))
+		{
+			auto lastErr = BWAPI::Broodwar->getLastError();
+		}
+		else
+		{
+			reserveMinerals(buildingType.mineralPrice());
+		}
+		break;
+	}
+}
+
+std::map<BWAPI::UnitType, size_t> getUnitCount()
+{
+	const auto &units = BWAPI::Broodwar->self()->getUnits();
+
+	std::map<BWAPI::UnitType, size_t> counter;
+	for (const auto &unit : units)
+	{
+		auto unitType = unit->getType();
+
+		auto search = counter.find(unitType);
+		if (search != counter.end())
+		{
+			search->second += 1;
+		}
+		else
+		{
+			counter[unitType] = 1;
+		}
+	}
+	return counter;
+}
 
 UAlbertaBotModule::UAlbertaBotModule()
 {
@@ -108,14 +239,64 @@ void UAlbertaBotModule::onFrame()
 		return;
 	}
 
-	if (Config::Modules::UsingGameCommander)
+	// if (Config::Modules::UsingGameCommander)
+	// {
+	// 	m_gameCommander.update();
+	// }
+
+	// if (Config::Modules::UsingAutoObserver)
+	// {
+	// 	m_autoObserver.onFrame();
+	// }
+
+	const auto supplyTotal = BWAPI::Broodwar->self()->supplyTotal();
+	const auto freeMinerals = getFreeMinerals();
+	const auto supplyNeeded = 40;
+	if (strategy.stage == 0 && supplyTotal < supplyNeeded && freeMinerals >= 100)
 	{
-		m_gameCommander.update();
+		const auto supplyProviderType = BWAPI::Broodwar->self()->getRace().getSupplyProvider();
+		buildBuilding(supplyProviderType);
+
+		if (supplyTotal + supplyProviderType.supplyProvided() >= supplyNeeded)
+		{
+			strategy.stage++;
+		}
+		return;
 	}
 
-	if (Config::Modules::UsingAutoObserver)
+	std::map<BWAPI::UnitType, size_t> unitCount = getUnitCount();
+	const auto &race = BWAPI::Broodwar->self()->getRace();
+	if (strategy.stage == 1 && unitCount[race.getWorker()] < 10 && freeMinerals >= 50)
 	{
-		m_autoObserver.onFrame();
+		const auto trained = trainSCV();
+
+		if (trained && unitCount[race.getWorker()] + 1 >= 10)
+		{
+			strategy.stage++;
+		}
+		return;
+	}
+
+	if (strategy.stage == 2 && unitCount[BWAPI::UnitTypes::Terran_Barracks] < 1 && freeMinerals >= 150)
+	{
+		buildBuilding(BWAPI::UnitTypes::Terran_Barracks);
+
+		if (unitCount[BWAPI::UnitTypes::Terran_Barracks] + 1 >= 1)
+		{
+			strategy.stage++;
+		}
+		return;
+	}
+
+	if (strategy.stage == 3 && unitCount[BWAPI::UnitTypes::Terran_Barracks] >= 1 && unitCount[BWAPI::UnitTypes::Terran_Marine] < 10 && freeMinerals >= 50)
+	{
+		const auto trained = trainMarine();
+
+		if (trained && unitCount[BWAPI::UnitTypes::Terran_Marine] + 1 >= 10)
+		{
+			strategy.stage++;
+		}
+		return;
 	}
 }
 
@@ -145,6 +326,12 @@ void UAlbertaBotModule::onUnitCreate(BWAPI::Unit unit)
 	if (Config::Modules::UsingGameCommander)
 	{
 		m_gameCommander.onUnitCreate(unit);
+	}
+
+	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType().isBuilding())
+	{
+		reserved.minerals -= unit->getType().mineralPrice();
+		reserved.gas -= unit->getType().gasPrice();
 	}
 }
 
