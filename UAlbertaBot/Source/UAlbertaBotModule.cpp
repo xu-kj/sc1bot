@@ -1,4 +1,4 @@
-/* 
+/*
  +----------------------------------------------------------------------+
  | UAlbertaBot                                                          |
  +----------------------------------------------------------------------+
@@ -73,6 +73,130 @@ void UAlbertaBotModule::onEnd(bool isWinner)
 	}
 }
 
+struct State
+{
+	int reservedMinerals = 400;
+	int reservedGas = 0;
+	int scv = 0;
+	int marine = 0;
+} globalstate;
+
+void reserveMinerals(int minerals)
+{
+	globalstate.reservedMinerals += minerals;
+}
+
+int getFreeMinerals()
+{
+	return BWAPI::Broodwar->self()->minerals() - globalstate.reservedMinerals;
+}
+
+// State globalstate;
+
+std::map<BWAPI::UnitType, size_t> getUnitCount()
+{
+	const auto& units = BWAPI::Broodwar->self()->getUnits();
+
+	std::map<BWAPI::UnitType, size_t> counter;
+	for (const auto& unit : units)
+	{
+		auto unitType = unit->getType();
+
+		auto search = counter.find(unitType);
+		if (search != counter.end())
+		{
+			search->second += 1;
+		}
+		else
+		{
+			counter[unitType] = 1;
+		}
+	}
+	return counter;
+}
+
+void trainSCV()
+{
+	const auto& units = BWAPI::Broodwar->self()->getUnits();
+	for (const auto& unit : units)
+	{
+		auto unitType = unit->getType();
+		auto t1 = unitType.isBuilding();
+		auto t2 = unitType.isResourceDepot();
+		if (!unitType.isResourceDepot())
+		{
+			continue;
+		}
+
+		const auto workerType = unitType.getRace().getWorker();
+		if (unit->isIdle() && !unit->train(workerType))
+		{
+			auto lastErr = BWAPI::Broodwar->getLastError();
+		}
+		break;
+	}
+}
+
+void trainMarine()
+{
+	const auto& units = BWAPI::Broodwar->self()->getUnits();
+	for (const auto& unit : units)
+	{
+		auto unitType = unit->getType();
+		auto isBuilding = unitType.isBuilding();
+		if (unitType != BWAPI::UnitTypes::Terran_Barracks)
+		{
+			continue;
+		}
+
+		if (unit->isIdle() && !unit->train(BWAPI::UnitTypes::Terran_Marine))
+		{
+			auto lastErr = BWAPI::Broodwar->getLastError();
+		}
+		break;
+	}
+}
+
+void buildBuilding(BWAPI::UnitType buildingType)
+{
+	const auto& units = BWAPI::Broodwar->self()->getUnits();
+	for (auto& unit : units)
+	{
+		auto unitType = unit->getType();
+		if (!unitType.isWorker())
+		{
+			continue;
+		}
+
+		if (unit->isConstructing())
+		{
+			continue;
+		}
+
+		auto targetBuildLocation = BWAPI::Broodwar->getBuildLocation(buildingType, unit->getTilePosition());
+		if (!unit->build(buildingType, targetBuildLocation))
+		{
+			auto lastErr = BWAPI::Broodwar->getLastError();
+		}
+		else
+		{
+			reserveMinerals(buildingType.mineralPrice());
+		}
+		break;
+	}
+}
+
+void buildSupplyDepot()
+{
+	const auto supplyProviderType = BWAPI::Broodwar->self()->getRace().getSupplyProvider();
+	buildBuilding(supplyProviderType);
+}
+
+void buildBarracks()
+{
+	buildBuilding(BWAPI::UnitTypes::Terran_Barracks);
+}
+
 void UAlbertaBotModule::onFrame()
 {
 	if (BWAPI::Broodwar->getFrameCount() > 100000)
@@ -108,14 +232,29 @@ void UAlbertaBotModule::onFrame()
 		return;
 	}
 
-	if (Config::Modules::UsingGameCommander)
+	if (BWAPI::Broodwar->self()->supplyTotal() < 40 && getFreeMinerals() >= 100)
 	{
-		m_gameCommander.update();
+		buildSupplyDepot();
+		return;
 	}
 
-	if (Config::Modules::UsingAutoObserver)
+	std::map<BWAPI::UnitType, size_t> unitCount = getUnitCount();
+	if (unitCount[BWAPI::Broodwar->self()->getRace().getWorker()] < 10 && getFreeMinerals() >= 50)
 	{
-		m_autoObserver.onFrame();
+		trainSCV();
+		return;
+	}
+
+	if (unitCount[BWAPI::UnitTypes::Terran_Barracks] < 1 && getFreeMinerals() >= 150)
+	{
+		buildBarracks();
+		return;
+	}
+
+	if (unitCount[BWAPI::UnitTypes::Terran_Barracks] > 0 && unitCount[BWAPI::UnitTypes::Terran_Marine] < 10 && getFreeMinerals() >= 50)
+	{
+		trainMarine();
+		return;
 	}
 }
 
@@ -145,6 +284,12 @@ void UAlbertaBotModule::onUnitCreate(BWAPI::Unit unit)
 	if (Config::Modules::UsingGameCommander)
 	{
 		m_gameCommander.onUnitCreate(unit);
+	}
+
+	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType().isBuilding())
+	{
+		globalstate.reservedMinerals -= unit->getType().mineralPrice();
+		globalstate.reservedGas -= unit->getType().gasPrice();
 	}
 }
 
