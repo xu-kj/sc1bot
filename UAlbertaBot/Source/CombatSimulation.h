@@ -3,7 +3,7 @@
 #include "Common.h"
 
 #ifdef USING_VISUALIZATION_LIBRARIES
-	#include "Visualizer.h"
+#include "Visualizer.h"
 #endif
 
 #include "..\..\SparCraft\source\GameState.h"
@@ -13,21 +13,20 @@
 
 namespace UAlbertaBot
 {
-struct UnitInfo;
-class CombatSimulation
-{
-	SparCraft::GameState m_state;
+	struct UnitInfo;
+	class CombatSimulation
+	{
+		SparCraft::GameState m_state;
 
-public:
+	public:
+		CombatSimulation();
 
-	CombatSimulation();
+		void setCombatUnits(const BWAPI::Position &center, const int radius);
 
-	void setCombatUnits(const BWAPI::Position & center, const int radius);
-
-	SparCraft::ScoreType            simulateCombat();
-	const SparCraft::Unit			getSparCraftUnit(const UnitInfo & ui) const;
-    const SparCraft::Unit			getSparCraftUnit(BWAPI::Unit unit) const;
-	const SparCraft::GameState &	getSparCraftState() const;
-	const size_t                    getSparCraftPlayerID(BWAPI::Player player) const;
-};
+		SparCraft::ScoreType simulateCombat();
+		const SparCraft::Unit getSparCraftUnit(const UnitInfo &ui) const;
+		const SparCraft::Unit getSparCraftUnit(BWAPI::Unit unit) const;
+		const SparCraft::GameState &getSparCraftState() const;
+		const size_t getSparCraftPlayerID(BWAPI::Player player) const;
+	};
 }
