@@ -5,14 +5,15 @@
 
 namespace UAlbertaBot
 {
-	class TankManager : public MicroManager
-	{
-	public:
-		TankManager();
-		void executeMicro(const BWAPI::Unitset &targets);
+class TankManager : public MicroManager
+{
+public:
 
-		int getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target);
-		BWAPI::Unit getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset &targets);
-		BWAPI::Unit closestrangedUnit(BWAPI::Unit target, std::set<BWAPI::Unit> &rangedUnitsToAssign);
-	};
+	TankManager();
+	void executeMicro(const BWAPI::Unitset & targets);
+    
+	int getAttackPriority(BWAPI::Unit rangedUnit, BWAPI::Unit target);
+	BWAPI::Unit getTarget(BWAPI::Unit rangedUnit, const BWAPI::Unitset & targets);
+	BWAPI::Unit closestrangedUnit(BWAPI::Unit target, std::set<BWAPI::Unit> & rangedUnitsToAssign);
+};
 }

@@ -5,61 +5,64 @@
 
 namespace UAlbertaBot
 {
-	class Building;
+class Building;
 
-	class WorkerManager
-	{
-		friend class Global;
+class WorkerManager
+{
+    friend class Global;
 
-		WorkerData m_workerData;
-		BWAPI::Unit m_previousClosestWorker = nullptr;
+    WorkerData  m_workerData;
+    BWAPI::Unit m_previousClosestWorker = nullptr;
+    BWAPI::Position movingPositions[4] = { BWAPI::Position(0, 50), BWAPI::Position(50, 0), BWAPI::Position(0, -50), BWAPI::Position(-50, 0) };
+    int movingIndex = 0;
 
-		void setMineralWorker(BWAPI::Unit unit);
-		bool isGasStealRefinery(BWAPI::Unit unit);
+    void setMineralWorker(BWAPI::Unit unit);
+    bool isGasStealRefinery(BWAPI::Unit unit);
 
-		void handleIdleWorkers();
-		void handleGasWorkers();
-		void handleMoveWorkers();
-		void handleCombatWorkers();
-		void handleRepairWorkers();
+    void handleIdleWorkers();
+    void handleGasWorkers();
+    void handleMoveWorkers();
+    void handleCombatWorkers();
+    void handleRepairWorkers();
 
-		WorkerManager();
+    WorkerManager();
 
-	public:
-		void onFrame();
-		void onUnitDestroy(BWAPI::Unit unit);
-		void onUnitMorph(BWAPI::Unit unit);
-		void onUnitShow(BWAPI::Unit unit);
-		void finishedWithWorker(BWAPI::Unit unit);
-		void finishedWithCombatWorkers();
-		void drawResourceDebugInfo();
-		void updateWorkerStatus();
-		void drawWorkerInformation(int x, int y);
+public:
 
-		int getNumMineralWorkers();
-		int getNumGasWorkers();
-		int getNumIdleWorkers();
-		void setScoutWorker(BWAPI::Unit worker);
+    void onFrame();
+    void onUnitDestroy(BWAPI::Unit unit);
+    void onUnitMorph(BWAPI::Unit unit);
+    void onUnitShow(BWAPI::Unit unit);
+    void finishedWithWorker(BWAPI::Unit unit);
+    void finishedWithCombatWorkers();
+    void drawResourceDebugInfo();
+    void updateWorkerStatus();
+    void drawWorkerInformation(int x, int y);
 
-		bool isWorkerScout(BWAPI::Unit worker);
-		bool isFree(BWAPI::Unit worker);
-		bool isBuilder(BWAPI::Unit worker);
+    int  getNumMineralWorkers();
+    int  getNumGasWorkers();
+    int  getNumIdleWorkers();
+    void setScoutWorker(BWAPI::Unit worker);
 
-		BWAPI::Unit getBuilder(Building &b, bool setJobAsBuilder = true);
-		BWAPI::Unit getMoveWorker(BWAPI::Position p);
-		BWAPI::Unit getClosestDepot(BWAPI::Unit worker);
-		BWAPI::Unit getGasWorker(BWAPI::Unit refinery);
-		BWAPI::Unit getClosestEnemyUnit(BWAPI::Unit worker);
-		BWAPI::Unit getClosestMineralWorkerTo(BWAPI::Unit enemyUnit);
-		BWAPI::Unit getWorkerScout();
+    bool isWorkerScout(BWAPI::Unit worker);
+    bool isFree(BWAPI::Unit worker);
+    bool isBuilder(BWAPI::Unit worker);
 
-		void setBuildingWorker(BWAPI::Unit worker, Building &b);
-		void setRepairWorker(BWAPI::Unit worker, BWAPI::Unit unitToRepair);
-		void stopRepairing(BWAPI::Unit worker);
-		void setMoveWorker(int m, int g, BWAPI::Position p);
-		void setCombatWorker(BWAPI::Unit worker);
+    BWAPI::Unit getBuilder(Building & b, bool setJobAsBuilder = true);
+    BWAPI::Unit getMoveWorker(BWAPI::Position p);
+    BWAPI::Unit getClosestDepot(BWAPI::Unit worker);
+    BWAPI::Unit getGasWorker(BWAPI::Unit refinery);
+    BWAPI::Unit getClosestEnemyUnit(BWAPI::Unit worker);
+    BWAPI::Unit getClosestMineralWorkerTo(BWAPI::Unit enemyUnit);
+    BWAPI::Unit getWorkerScout();
 
-		bool willHaveResources(int mineralsRequired, int gasRequired, double distance);
-		void rebalanceWorkers();
-	};
+    void setBuildingWorker(BWAPI::Unit worker, Building & b);
+    void setRepairWorker(BWAPI::Unit worker, BWAPI::Unit unitToRepair);
+    void stopRepairing(BWAPI::Unit worker);
+    void setMoveWorker(int m, int g, BWAPI::Position p);
+    void setCombatWorker(BWAPI::Unit worker);
+
+    bool willHaveResources(int mineralsRequired, int gasRequired, double distance);
+    void rebalanceWorkers();
+};
 }

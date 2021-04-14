@@ -6,18 +6,19 @@
 
 class StarterBot
 {
-	MapTools m_mapTools;
+    MapTools m_mapTools;
 
 public:
-	StarterBot();
 
-	// helper functions to get you started with bot programming and learn the API
-	void sendIdleWorkersToMinerals();
-	void trainAdditionalWorkers();
-	void buildAdditionalSupply();
-	void drawDebugInformation();
+    StarterBot();
 
-	// functions that are triggered by various BWAPI events from main.cpp
+    // helper functions to get you started with bot programming and learn the API
+    void sendIdleWorkersToMinerals();
+    void trainAdditionalWorkers();
+    void buildAdditionalSupply();
+    void drawDebugInformation();
+
+    // functions that are triggered by various BWAPI events from main.cpp
 	void onStart();
 	void onFrame();
 	void onEnd(bool isWinner);

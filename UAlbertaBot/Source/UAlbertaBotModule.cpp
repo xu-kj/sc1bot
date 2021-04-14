@@ -11,6 +11,7 @@
 */
 
 #include "Common.h"
+#include "Micro.h"
 #include "UAlbertaBotModule.h"
 #include "JSONTools.h"
 #include "ParseUtils.h"
@@ -21,90 +22,112 @@
 
 using namespace UAlbertaBot;
 
-struct ReservedResources
+struct State
 {
-	int minerals = 400;
-	int gas = 0;
-} reserved;
-
-struct Strategy
-{
-	int stage = 0;
-} strategy;
+	int reservedMinerals = 400;
+	int reservedGas = 0;
+	int scv = 0;
+	int marine = 0;
+} globalstate;
 
 void reserveMinerals(int minerals)
 {
-	reserved.minerals += minerals;
+	globalstate.reservedMinerals += minerals;
 }
 
 int getFreeMinerals()
 {
-	return BWAPI::Broodwar->self()->minerals() - reserved.minerals;
+	return BWAPI::Broodwar->self()->minerals() - globalstate.reservedMinerals;
 }
 
-bool trainSCV()
+void trainSCV()
 {
-	const auto &units = BWAPI::Broodwar->self()->getUnits();
-	for (const auto &unit : units)
+	const auto& units = BWAPI::Broodwar->self()->getUnits();
+	for (const auto& unit : units)
 	{
-		const auto unitType = unit->getType();
-		if (!unitType.isBuilding() || !unitType.isResourceDepot())
-		{
-			continue;
-		}
-
-		if (!unit->isIdle())
+		auto unitType = unit->getType();
+		auto t1 = unitType.isBuilding();
+		auto t2 = unitType.isResourceDepot();
+		if (!unitType.isResourceDepot())
 		{
 			continue;
 		}
 
 		const auto workerType = unitType.getRace().getWorker();
-		if (!unit->train(workerType))
+		if (unit->isIdle() && !unit->train(workerType))
 		{
 			auto lastErr = BWAPI::Broodwar->getLastError();
 		}
-		else
-		{
-			return true;
-		}
 		break;
 	}
-	return false;
 }
 
-bool trainMarine()
+void trainMarine()
 {
-	const auto &units = BWAPI::Broodwar->self()->getUnits();
-	for (const auto &unit : units)
+	const auto& units = BWAPI::Broodwar->self()->getUnits();
+	for (const auto& unit : units)
 	{
-		const auto unitType = unit->getType();
-		if (!unitType.isBuilding() || unitType != BWAPI::UnitTypes::Terran_Barracks)
+		auto unitType = unit->getType();
+		auto isBuilding = unitType.isBuilding();
+		if (unitType != BWAPI::UnitTypes::Terran_Barracks)
 		{
 			continue;
 		}
 
-		if (!unit->isIdle())
-		{
-			continue;
-		}
-
-		if (!unit->train(BWAPI::UnitTypes::Terran_Marine))
+		if (unit->isIdle() && !unit->train(BWAPI::UnitTypes::Terran_Marine))
 		{
 			auto lastErr = BWAPI::Broodwar->getLastError();
 		}
-		else
-		{
-			return true;
-		}
 		break;
 	}
-	return false;
+}
+
+BWAPI::Unit getClosestDepot(BWAPI::Unit worker)
+{
+	BWAPI::Unit closestDepot = nullptr;
+	double closestDistance = 0;
+
+	for (auto& unit : BWAPI::Broodwar->self()->getUnits())
+	{
+		if (unit->getType().isResourceDepot())
+		{
+			const double distance = unit->getDistance(worker);
+			if (!closestDepot || distance < closestDistance)
+			{
+				closestDepot = unit;
+				closestDistance = distance;
+			}
+		}
+	}
+
+	return closestDepot;
+}
+
+void mineral() {
+	const auto& units = BWAPI::Broodwar->self()->getUnits();
+	for (const auto& unit : units) {
+		auto unitType = unit->getType();
+		if (unitType != unitType.getRace().getWorker()) {
+			return;
+		}
+
+		if (!unit->isIdle()) {
+			return;
+		}
+
+		BWAPI::Unit depot = getClosestDepot(unit);
+
+		if (depot)
+		{
+			Micro::SmartRightClick(unit, depot);
+		}
+	}
 }
 
 void buildBuilding(BWAPI::UnitType buildingType)
 {
-	const auto &units = BWAPI::Broodwar->self()->getUnits();
-	for (auto &unit : units)
+	const auto& units = BWAPI::Broodwar->self()->getUnits();
+	for (auto& unit : units)
 	{
 		auto unitType = unit->getType();
 		if (!unitType.isWorker())
@@ -130,12 +153,23 @@ void buildBuilding(BWAPI::UnitType buildingType)
 	}
 }
 
+void buildSupplyDepot()
+{
+	const auto supplyProviderType = BWAPI::Broodwar->self()->getRace().getSupplyProvider();
+	buildBuilding(supplyProviderType);
+}
+
+void buildBarracks()
+{
+	buildBuilding(BWAPI::UnitTypes::Terran_Barracks);
+}
+
 std::map<BWAPI::UnitType, size_t> getUnitCount()
 {
-	const auto &units = BWAPI::Broodwar->self()->getUnits();
+	const auto& units = BWAPI::Broodwar->self()->getUnits();
 
 	std::map<BWAPI::UnitType, size_t> counter;
-	for (const auto &unit : units)
+	for (const auto& unit : units)
 	{
 		auto unitType = unit->getType();
 
@@ -162,7 +196,7 @@ void UAlbertaBotModule::onStart()
 {
 	// Parse the bot's configuration file if it has one, change this file path to where your config file is
 	// Any relative path name will be relative to Starcraft installation folder
-	ParseUtils::ParseConfigFile(Config::ConfigFile::ConfigFileLocation);
+	//ParseUtils::ParseConfigFile(Config::ConfigFile::ConfigFileLocation);
 
 	// Set our BWAPI options here
 	BWAPI::Broodwar->setLocalSpeed(Config::BWAPIOptions::SetLocalSpeed);
@@ -184,14 +218,14 @@ void UAlbertaBotModule::onStart()
 	}
 
 	// Call BWTA to read and analyze the current map
-	if (Config::Modules::UsingGameCommander)
-	{
-		if (Config::Modules::UsingStrategyIO)
-		{
-			Global::Strategy().readResults();
-			Global::Strategy().setLearnedStrategy();
-		}
-	}
+	//if (Config::Modules::UsingGameCommander)
+	//{
+	//	if (Config::Modules::UsingStrategyIO)
+	//	{
+	//		Global::Strategy().readResults();
+	//		Global::Strategy().setLearnedStrategy();
+	//	}
+	//}
 
 	//Global::Map().saveMapToFile("map.txt");
 }
@@ -211,91 +245,71 @@ void UAlbertaBotModule::onFrame()
 		BWAPI::Broodwar->restartGame();
 	}
 
-	const char red = '\x08';
-	const char green = '\x07';
-	const char white = '\x04';
+	//const char red = '\x08';
+	//const char green = '\x07';
+	//const char white = '\x04';
 
-	if (!Config::ConfigFile::ConfigFileFound)
+	//if (!Config::ConfigFile::ConfigFileFound)
+	//{
+	//	BWAPI::Broodwar->drawBoxScreen(0, 0, 450, 100, BWAPI::Colors::Black, true);
+	//	BWAPI::Broodwar->setTextSize(BWAPI::Text::Size::Huge);
+	//	BWAPI::Broodwar->drawTextScreen(10, 5, "%c%s Config File Not Found", red, Config::BotInfo::BotName.c_str());
+	//	BWAPI::Broodwar->setTextSize(BWAPI::Text::Size::Default);
+	//	BWAPI::Broodwar->drawTextScreen(10, 30, "%c%s will not run without its configuration file", white, Config::BotInfo::BotName.c_str());
+	//	BWAPI::Broodwar->drawTextScreen(10, 45, "%cCheck that the file below exists. Incomplete paths are relative to Starcraft directory", white);
+	//	BWAPI::Broodwar->drawTextScreen(10, 60, "%cYou can change this file location in Config::ConfigFile::ConfigFileLocation", white);
+	//	BWAPI::Broodwar->drawTextScreen(10, 75, "%cFile Not Found (or is empty): %c %s", white, green, Config::ConfigFile::ConfigFileLocation.c_str());
+	//	return;
+	//}
+	//else if (!Config::ConfigFile::ConfigFileParsed)
+	//{
+	//	BWAPI::Broodwar->drawBoxScreen(0, 0, 450, 100, BWAPI::Colors::Black, true);
+	//	BWAPI::Broodwar->setTextSize(BWAPI::Text::Size::Huge);
+	//	BWAPI::Broodwar->drawTextScreen(10, 5, "%c%s Config File Parse Error", red, Config::BotInfo::BotName.c_str());
+	//	BWAPI::Broodwar->setTextSize(BWAPI::Text::Size::Default);
+	//	BWAPI::Broodwar->drawTextScreen(10, 30, "%c%s will not run without a properly formatted configuration file", white, Config::BotInfo::BotName.c_str());
+	//	BWAPI::Broodwar->drawTextScreen(10, 45, "%cThe configuration file was found, but could not be parsed. Check that it is valid JSON", white);
+	//	BWAPI::Broodwar->drawTextScreen(10, 60, "%cFile Not Parsed: %c %s", white, green, Config::ConfigFile::ConfigFileLocation.c_str());
+	//	return;
+	//}
+
+	//if (Config::Modules::UsingGameCommander)
+	//{
+	//	m_gameCommander.update();
+	//}
+
+	if (Config::Modules::UsingAutoObserver)
 	{
-		BWAPI::Broodwar->drawBoxScreen(0, 0, 450, 100, BWAPI::Colors::Black, true);
-		BWAPI::Broodwar->setTextSize(BWAPI::Text::Size::Huge);
-		BWAPI::Broodwar->drawTextScreen(10, 5, "%c%s Config File Not Found", red, Config::BotInfo::BotName.c_str());
-		BWAPI::Broodwar->setTextSize(BWAPI::Text::Size::Default);
-		BWAPI::Broodwar->drawTextScreen(10, 30, "%c%s will not run without its configuration file", white, Config::BotInfo::BotName.c_str());
-		BWAPI::Broodwar->drawTextScreen(10, 45, "%cCheck that the file below exists. Incomplete paths are relative to Starcraft directory", white);
-		BWAPI::Broodwar->drawTextScreen(10, 60, "%cYou can change this file location in Config::ConfigFile::ConfigFileLocation", white);
-		BWAPI::Broodwar->drawTextScreen(10, 75, "%cFile Not Found (or is empty): %c %s", white, green, Config::ConfigFile::ConfigFileLocation.c_str());
-		return;
-	}
-	else if (!Config::ConfigFile::ConfigFileParsed)
-	{
-		BWAPI::Broodwar->drawBoxScreen(0, 0, 450, 100, BWAPI::Colors::Black, true);
-		BWAPI::Broodwar->setTextSize(BWAPI::Text::Size::Huge);
-		BWAPI::Broodwar->drawTextScreen(10, 5, "%c%s Config File Parse Error", red, Config::BotInfo::BotName.c_str());
-		BWAPI::Broodwar->setTextSize(BWAPI::Text::Size::Default);
-		BWAPI::Broodwar->drawTextScreen(10, 30, "%c%s will not run without a properly formatted configuration file", white, Config::BotInfo::BotName.c_str());
-		BWAPI::Broodwar->drawTextScreen(10, 45, "%cThe configuration file was found, but could not be parsed. Check that it is valid JSON", white);
-		BWAPI::Broodwar->drawTextScreen(10, 60, "%cFile Not Parsed: %c %s", white, green, Config::ConfigFile::ConfigFileLocation.c_str());
-		return;
+		m_autoObserver.onFrame();
 	}
 
-	// if (Config::Modules::UsingGameCommander)
-	// {
-	// 	m_gameCommander.update();
-	// }
-
-	// if (Config::Modules::UsingAutoObserver)
-	// {
-	// 	m_autoObserver.onFrame();
-	// }
+	mineral();
 
 	const auto supplyTotal = BWAPI::Broodwar->self()->supplyTotal();
 	const auto freeMinerals = getFreeMinerals();
-	const auto supplyNeeded = 40;
-	if (strategy.stage == 0 && supplyTotal < supplyNeeded && freeMinerals >= 100)
+	if (supplyTotal < 40 && freeMinerals >= 100)
 	{
-		const auto supplyProviderType = BWAPI::Broodwar->self()->getRace().getSupplyProvider();
-		buildBuilding(supplyProviderType);
-
-		if (supplyTotal + supplyProviderType.supplyProvided() >= supplyNeeded)
-		{
-			strategy.stage++;
-		}
+		buildSupplyDepot();
 		return;
 	}
 
 	std::map<BWAPI::UnitType, size_t> unitCount = getUnitCount();
-	const auto &race = BWAPI::Broodwar->self()->getRace();
-	if (strategy.stage == 1 && unitCount[race.getWorker()] < 10 && freeMinerals >= 50)
+	auto race = BWAPI::Broodwar->self()->getRace();
+	if (unitCount[race.getWorker()] < 10 && freeMinerals >= 50)
 	{
-		const auto trained = trainSCV();
-
-		if (trained && unitCount[race.getWorker()] + 1 >= 10)
-		{
-			strategy.stage++;
-		}
+		trainSCV();
 		return;
 	}
 
-	if (strategy.stage == 2 && unitCount[BWAPI::UnitTypes::Terran_Barracks] < 1 && freeMinerals >= 150)
+	if (unitCount[BWAPI::UnitTypes::Terran_Barracks] < 1 && freeMinerals >= 150)
 	{
-		buildBuilding(BWAPI::UnitTypes::Terran_Barracks);
-
-		if (unitCount[BWAPI::UnitTypes::Terran_Barracks] + 1 >= 1)
-		{
-			strategy.stage++;
-		}
+		buildBarracks();
 		return;
 	}
 
-	if (strategy.stage == 3 && unitCount[BWAPI::UnitTypes::Terran_Barracks] >= 1 && unitCount[BWAPI::UnitTypes::Terran_Marine] < 10 && freeMinerals >= 50)
+	if (unitCount[BWAPI::UnitTypes::Terran_Barracks] >= 1 && unitCount[BWAPI::UnitTypes::Terran_Marine] < 10 && freeMinerals >= 50)
 	{
-		const auto trained = trainMarine();
-
-		if (trained && unitCount[BWAPI::UnitTypes::Terran_Marine] + 1 >= 10)
-		{
-			strategy.stage++;
-		}
+		trainMarine();
 		return;
 	}
 }
@@ -330,8 +344,8 @@ void UAlbertaBotModule::onUnitCreate(BWAPI::Unit unit)
 
 	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType().isBuilding())
 	{
-		reserved.minerals -= unit->getType().mineralPrice();
-		reserved.gas -= unit->getType().gasPrice();
+		globalstate.reservedMinerals -= unit->getType().mineralPrice();
+		globalstate.reservedGas -= unit->getType().gasPrice();
 	}
 }
 

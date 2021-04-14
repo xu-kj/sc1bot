@@ -4,45 +4,46 @@ using namespace UAlbertaBot;
 
 BuildingData::BuildingData()
 {
+
 }
 
-void BuildingData::removeBuilding(const Building &b)
+void BuildingData::removeBuilding(const Building & b)
 {
-	auto &building = std::find(m_buildings.begin(), m_buildings.end(), b);
+    auto & building = std::find(m_buildings.begin(), m_buildings.end(), b);
 
-	if (building != m_buildings.end())
-	{
-		m_buildings.erase(building);
-	}
+    if (building != m_buildings.end())
+    {
+        m_buildings.erase(building);
+    }
 }
 
-std::vector<Building> &BuildingData::getBuildings()
+std::vector<Building> & BuildingData::getBuildings()
 {
-	return m_buildings;
+    return m_buildings;
 }
 
-void BuildingData::addBuilding(const Building &b)
+void BuildingData::addBuilding(const Building & b)
 {
-	m_buildings.push_back(b);
+    m_buildings.push_back(b);
 }
 
 bool BuildingData::isBeingBuilt(BWAPI::UnitType type)
 {
-	for (auto &b : m_buildings)
-	{
-		if (b.type == type)
-		{
-			return true;
-		}
-	}
+    for (auto & b : m_buildings)
+    {
+        if (b.type == type)
+        {
+            return true;
+        }
+    }
 
-	return false;
+    return false;
 }
 
-void BuildingData::removeBuildings(const std::vector<Building> &buildings)
+void BuildingData::removeBuildings(const std::vector<Building> & buildings)
 {
-	for (const auto &b : buildings)
-	{
-		removeBuilding(b);
-	}
+    for (const auto & b : buildings)
+    {
+        removeBuilding(b);
+    }
 }
