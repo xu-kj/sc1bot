@@ -37,13 +37,13 @@ void UAlbertaBot_PlayGame()
 				case BWAPI::EventType::MatchFrame:      { bot.onFrame();                      break; }
 			    case BWAPI::EventType::MatchEnd:        { bot.onEnd(e.isWinner());            break; }
 				case BWAPI::EventType::UnitShow:        { bot.onUnitShow(e.getUnit());        break; }
-				//case BWAPI::EventType::UnitHide:        { bot.onUnitHide(e.getUnit());        break; }
+				case BWAPI::EventType::UnitHide:        { bot.onUnitHide(e.getUnit());        break; }
 				case BWAPI::EventType::UnitCreate:      { bot.onUnitCreate(e.getUnit());      break; }
 				case BWAPI::EventType::UnitMorph:       { bot.onUnitMorph(e.getUnit());       break; }
-				//case BWAPI::EventType::UnitDestroy:     { bot.onUnitDestroy(e.getUnit());     break; }
-				//case BWAPI::EventType::UnitRenegade:    { bot.onUnitRenegade(e.getUnit());    break; }
+				case BWAPI::EventType::UnitDestroy:     { bot.onUnitDestroy(e.getUnit());     break; }
+				case BWAPI::EventType::UnitRenegade:    { bot.onUnitRenegade(e.getUnit());    break; }
 				case BWAPI::EventType::UnitComplete:    { bot.onUnitComplete(e.getUnit());    break; }
-				//case BWAPI::EventType::SendText:        { bot.onSendText(e.getText());        break; }
+				case BWAPI::EventType::SendText:        { bot.onSendText(e.getText());        break; }
 			}
 		}
         

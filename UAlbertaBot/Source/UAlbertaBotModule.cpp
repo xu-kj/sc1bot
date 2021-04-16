@@ -108,18 +108,34 @@ void mineral() {
 	for (const auto& unit : units) {
 		auto unitType = unit->getType();
 		if (unitType != unitType.getRace().getWorker()) {
-			return;
+			continue;
 		}
 
-		if (!unit->isIdle()) {
-			return;
+		if (!unit->isIdle() && !unit->isCompleted()) {
+			continue;
 		}
 
 		BWAPI::Unit depot = getClosestDepot(unit);
 
 		if (depot)
 		{
-			Micro::SmartRightClick(unit, depot);
+			BWAPI::Unit bestMineral = nullptr;
+			double bestDist = 100000;
+
+			for (auto& mineralPatch : BWAPI::Broodwar->getAllUnits())
+			{
+				if ((mineralPatch->getType() == BWAPI::UnitTypes::Resource_Mineral_Field))
+				{
+					double dist = mineralPatch->getDistance(depot);
+					if (!bestMineral || dist < bestDist)
+					{
+						bestMineral = mineralPatch;
+						bestDist = dist;
+					}
+				}
+			}
+
+			Micro::SmartRightClick(unit, bestMineral);
 		}
 	}
 }
@@ -283,8 +299,6 @@ void UAlbertaBotModule::onFrame()
 		m_autoObserver.onFrame();
 	}
 
-	mineral();
-
 	const auto supplyTotal = BWAPI::Broodwar->self()->supplyTotal();
 	const auto freeMinerals = getFreeMinerals();
 	if (supplyTotal < 40 && freeMinerals >= 100)
@@ -347,6 +361,8 @@ void UAlbertaBotModule::onUnitCreate(BWAPI::Unit unit)
 		globalstate.reservedMinerals -= unit->getType().mineralPrice();
 		globalstate.reservedGas -= unit->getType().gasPrice();
 	}
+
+	mineral();
 }
 
 void UAlbertaBotModule::onUnitComplete(BWAPI::Unit unit)
