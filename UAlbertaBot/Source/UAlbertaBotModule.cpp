@@ -42,6 +42,16 @@ int getFreeMinerals()
 	return BWAPI::Broodwar->self()->minerals() - reserved.minerals;
 }
 
+int getFreeGas()
+{
+	return BWAPI::Broodwar->self()->gas() - reserved.gas;
+}
+
+bool canBuild(BWAPI::UnitType unitType)
+{
+	return unitType.mineralPrice() <= getFreeMinerals() && unitType.gasPrice() <= getFreeGas();
+}
+
 bool trainSCV()
 {
 	const auto &units = BWAPI::Broodwar->self()->getUnits();
@@ -250,11 +260,13 @@ void UAlbertaBotModule::onFrame()
 	// }
 
 	// Get main building closest to start location.
-	auto startLocation = BWAPI::Broodwar->self()->getStartLocation();
+	const auto startLocation = BWAPI::Broodwar->self()->getStartLocation();
 	BWAPI::Unit pMain = BWAPI::Broodwar->getClosestUnit(BWAPI::Position(startLocation.x, startLocation.y), BWAPI::Filter::IsResourceDepot);
 	if (pMain)
 	{
-		BWAPI::Unitset minerals = pMain->getUnitsInRadius(1024, BWAPI::Filter::IsMineralField);
+		BWAPI::Unitset minerals = pMain->getUnitsInRadius(1024, [](BWAPI::Unit unit) {
+			return unit->getType().isMineralField();
+		});
 		if (!minerals.empty())
 		{
 			BWAPI::Unitset workers = pMain->getUnitsInRadius(512, BWAPI::Filter::IsWorker && BWAPI::Filter::IsIdle && BWAPI::Filter::IsOwned);
@@ -270,52 +282,73 @@ void UAlbertaBotModule::onFrame()
 		}
 	}
 
-	const auto supplyTotal = BWAPI::Broodwar->self()->supplyTotal();
-	const auto freeMinerals = getFreeMinerals();
-	const auto supplyNeeded = 40;
-	if (strategy.stage == 0 && supplyTotal < supplyNeeded && freeMinerals >= 100)
-	{
-		const auto supplyProviderType = BWAPI::Broodwar->self()->getRace().getSupplyProvider();
-		buildBuilding(supplyProviderType);
+	const auto &race = BWAPI::Broodwar->self()->getRace();
 
-		if (supplyTotal + supplyProviderType.supplyProvided() >= supplyNeeded)
+	if (strategy.stage == 0)
+	{
+		const auto supplyNeeded = 40;
+		const auto supplyTotal = BWAPI::Broodwar->self()->supplyTotal();
+
+		const auto supplyProviderType = race.getSupplyProvider();
+		if (supplyTotal < supplyNeeded && canBuild(supplyProviderType))
 		{
-			strategy.stage++;
+			buildBuilding(supplyProviderType);
+
+			if (supplyTotal + supplyProviderType.supplyProvided() >= supplyNeeded)
+			{
+				strategy.stage++;
+			}
 		}
 		return;
 	}
 
 	std::map<BWAPI::UnitType, size_t> unitCount = getUnitCount();
-	const auto &race = BWAPI::Broodwar->self()->getRace();
-	if (strategy.stage == 1 && unitCount[race.getWorker()] < 10 && freeMinerals >= 50)
+	if (strategy.stage == 1)
 	{
-		const auto trained = trainSCV();
-
-		if (trained && unitCount[race.getWorker()] + 1 >= 10)
+		const auto workerType = race.getWorker();
+		const auto workersWanted = 10;
+		if (unitCount[workerType] < workersWanted && canBuild(workerType))
 		{
-			strategy.stage++;
+			const auto trained = trainSCV();
+
+			if (trained && unitCount[race.getWorker()] + 1 >= workersWanted)
+			{
+				strategy.stage++;
+			}
 		}
 		return;
 	}
 
-	if (strategy.stage == 2 && unitCount[BWAPI::UnitTypes::Terran_Barracks] < 1 && freeMinerals >= 150)
+	if (strategy.stage == 2)
 	{
-		buildBuilding(BWAPI::UnitTypes::Terran_Barracks);
-
-		if (unitCount[BWAPI::UnitTypes::Terran_Barracks] + 1 >= 1)
+		const auto barrackType = BWAPI::UnitTypes::Terran_Barracks;
+		const auto barracksWanted = 1;
+		if (unitCount[barrackType] < barracksWanted && canBuild(barrackType))
 		{
-			strategy.stage++;
+			buildBuilding(BWAPI::UnitTypes::Terran_Barracks);
+
+			if (unitCount[BWAPI::UnitTypes::Terran_Barracks] + 1 >= barracksWanted)
+			{
+				strategy.stage++;
+			}
 		}
 		return;
 	}
 
-	if (strategy.stage == 3 && unitCount[BWAPI::UnitTypes::Terran_Barracks] >= 1 && unitCount[BWAPI::UnitTypes::Terran_Marine] < 10 && freeMinerals >= 50)
+	if (strategy.stage == 3)
 	{
-		const auto trained = trainMarine();
+		const auto barrackType = BWAPI::UnitTypes::Terran_Barracks;
+		const auto marineType = BWAPI::UnitTypes::Terran_Marine;
+		const auto marinesWanted = 10;
 
-		if (trained && unitCount[BWAPI::UnitTypes::Terran_Marine] + 1 >= 10)
+		if (unitCount[barrackType] > 0 && unitCount[marineType] < marinesWanted && canBuild(marineType))
 		{
-			strategy.stage++;
+			const auto trained = trainMarine();
+
+			if (trained && unitCount[BWAPI::UnitTypes::Terran_Marine] + 1 >= marinesWanted)
+			{
+				strategy.stage++;
+			}
 		}
 		return;
 	}
