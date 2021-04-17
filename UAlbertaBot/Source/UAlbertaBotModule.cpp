@@ -249,6 +249,27 @@ void UAlbertaBotModule::onFrame()
 	// 	m_autoObserver.onFrame();
 	// }
 
+	// Get main building closest to start location.
+	auto startLocation = BWAPI::Broodwar->self()->getStartLocation();
+	BWAPI::Unit pMain = BWAPI::Broodwar->getClosestUnit(BWAPI::Position(startLocation.x, startLocation.y), BWAPI::Filter::IsResourceDepot);
+	if (pMain)
+	{
+		BWAPI::Unitset minerals = pMain->getUnitsInRadius(1024, BWAPI::Filter::IsMineralField);
+		if (!minerals.empty())
+		{
+			BWAPI::Unitset workers = pMain->getUnitsInRadius(512, BWAPI::Filter::IsWorker && BWAPI::Filter::IsIdle && BWAPI::Filter::IsOwned);
+			while (!workers.empty())
+			{
+				for (auto u = minerals.begin(); u != minerals.end() && !workers.empty(); ++u)
+				{
+					auto worker = *workers.begin();
+					worker->gather(*u);
+					workers.erase(workers.begin());
+				}
+			}
+		}
+	}
+
 	const auto supplyTotal = BWAPI::Broodwar->self()->supplyTotal();
 	const auto freeMinerals = getFreeMinerals();
 	const auto supplyNeeded = 40;
