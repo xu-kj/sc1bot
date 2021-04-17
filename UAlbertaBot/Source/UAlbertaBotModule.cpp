@@ -117,12 +117,20 @@ void buildBuilding(BWAPI::UnitType buildingType)
 	for (auto &unit : units)
 	{
 		auto unitType = unit->getType();
+		// get workers
 		if (!unitType.isWorker())
 		{
 			continue;
 		}
 
+		// not builders
 		if (unit->isConstructing())
+		{
+			continue;
+		}
+
+		// not gas gatherer
+		if (unit->isGatheringGas())
 		{
 			continue;
 		}
@@ -350,6 +358,96 @@ void UAlbertaBotModule::onFrame()
 				strategy.stage++;
 			}
 		}
+		return;
+	}
+
+	if (strategy.stage == 4)
+	{
+		const auto refineryType = BWAPI::UnitTypes::Terran_Refinery;
+		const auto refineriesWanted = 1;
+
+		if (unitCount[refineryType] < refineriesWanted && canBuild(refineryType))
+		{
+			if (pMain)
+			{
+				const auto gasFields = pMain->getUnitsInRadius(1024, [](BWAPI::Unit unit) {
+					return unit->getType() == BWAPI::UnitTypes::Resource_Vespene_Geyser;
+				});
+
+				// auto workers = pMain->getUnitsInRadius(512, BWAPI::Filter::IsWorker && BWAPI::Filter::IsIdle && BWAPI::Filter::IsOwned);
+				auto workers = pMain->getUnitsInRadius(512, BWAPI::Filter::IsWorker && BWAPI::Filter::IsOwned);
+				for (const auto &gasField : gasFields)
+				{
+					if (workers.empty())
+					{
+						break;
+					}
+
+					auto worker = *workers.begin();
+					worker->build(BWAPI::UnitTypes::Terran_Refinery, gasField->getTilePosition());
+					workers.erase(workers.begin());
+
+					if (unitCount[BWAPI::UnitTypes::Terran_Refinery] + 1 >= refineriesWanted)
+					{
+						strategy.stage++;
+						break;
+					}
+				}
+			}
+		}
+
+		return;
+	}
+
+	if (strategy.stage == 5)
+	{
+		const auto refineryType = BWAPI::UnitTypes::Terran_Refinery;
+		const auto refineriesWanted = 1;
+
+		if (unitCount[refineryType] > 0)
+		{
+			const auto &units = BWAPI::Broodwar->self()->getUnits();
+
+			std::vector<BWAPI::Unit> refineries;
+			std::vector<BWAPI::Unit> mineralGatherers;
+
+			auto gasGatherer = 0;
+			for (const auto &unit : units)
+			{
+				const auto unitType = unit->getType();
+				if (unitType.isRefinery())
+				{
+					refineries.push_back(unit);
+				}
+				if (unitType.isWorker() && unit->isGatheringMinerals())
+				{
+					mineralGatherers.push_back(unit);
+				}
+				if (unitType.isWorker() && unit->isGatheringGas())
+				{
+					gasGatherer++;
+				}
+			}
+			if (gasGatherer < 3 * unitCount[refineryType])
+			{
+				for (const auto &refinery : refineries)
+				{
+					if (mineralGatherers.empty())
+					{
+						break;
+					}
+					if (!refinery->isCompleted() || refinery->isBeingGathered())
+					{
+						continue;
+					}
+
+					auto worker = *mineralGatherers.begin();
+					worker->gather(refinery);
+					mineralGatherers.erase(mineralGatherers.begin());
+				}
+			}
+		}
+
 		return;
 	}
 }
