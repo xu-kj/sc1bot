@@ -26,6 +26,69 @@ UAlbertaBotModule::UAlbertaBotModule()
 	Global::GameStart();
 }
 
+void sendMineralWorker() {
+	// Get main building closest to start location.
+	auto startLocation = BWAPI::Broodwar->self()->getStartLocation();
+	BWAPI::Unit pMain = BWAPI::Broodwar->getClosestUnit(BWAPI::Position(startLocation.x, startLocation.y), BWAPI::Filter::IsResourceDepot);
+	if (pMain) // check if pMain is valid
+	{
+		// Get sets of resources and workers
+		BWAPI::Unitset myResources = pMain->getUnitsInRadius(1024, BWAPI::Filter::IsMineralField);
+		if (!myResources.empty()) // check if we have resources nearby
+		{
+			BWAPI::Unitset myWorkers = pMain->getUnitsInRadius(512, BWAPI::Filter::IsWorker && BWAPI::Filter::IsIdle && BWAPI::Filter::IsOwned);
+			while (!myWorkers.empty()) // make sure we command all nearby idle workers, if any
+			{
+				for (auto u = myResources.begin(); u != myResources.end() && !myWorkers.empty(); ++u)
+				{
+					auto worker = *myWorkers.begin();
+					worker->gather(*u);
+					myWorkers.erase(myWorkers.begin());
+				}
+			}
+		} // myResources not empty
+	} // pMain != nullptr
+}
+
+void sendGasWorker() {
+	// Get main building closest to start location.
+	auto startLocation = BWAPI::Broodwar->self()->getStartLocation();
+	BWAPI::Unit pMain = BWAPI::Broodwar->getClosestUnit(BWAPI::Position(startLocation.x, startLocation.y), BWAPI::Filter::IsResourceDepot);
+	if (pMain) // check if pMain is valid
+	{
+		// Get sets of resources and workers
+		BWAPI::Unitset myGasRefinery = pMain->getUnitsInRadius(1024, BWAPI::Filter::IsRefinery && BWAPI::Filter::IsCompleted);
+		if (!myGasRefinery.empty()) // check if we have resources nearby
+		{
+			BWAPI::Unitset myWorkers = pMain->getUnitsInRadius(1024, BWAPI::Filter::IsWorker && BWAPI::Filter::IsOwned);
+			int gasingWorkerCount = 0;
+			for (auto w : myWorkers) {
+				if (w->isGatheringGas()) {
+					gasingWorkerCount += 1;
+				}
+			}
+			auto refinery = *(myGasRefinery.begin());
+			while (gasingWorkerCount > 2) {
+				for (auto w : myWorkers) {
+					if (w->isGatheringGas()) {
+						w->stop();
+						gasingWorkerCount -= 1;
+						break;
+					}
+				}
+			}
+
+			while (gasingWorkerCount < 2 && !myWorkers.empty())
+			{
+				auto worker = *myWorkers.begin();
+				worker->gather(refinery);
+				myWorkers.erase(myWorkers.begin());
+				gasingWorkerCount += 1;
+			}
+		} // myResources not empty
+	} // pMain != nullptr
+}
+
 // This gets called when the bot starts!
 void UAlbertaBotModule::onStart()
 {
@@ -61,6 +124,8 @@ void UAlbertaBotModule::onStart()
 			Global::Strategy().setLearnedStrategy();
 		}
 	}
+
+	sendMineralWorker();
 
 	//Global::Map().saveMapToFile("map.txt");
 }
@@ -173,6 +238,10 @@ void buildBuilding(BWAPI::UnitType buildingType)
 			continue;
 		}
 
+		if (unit->isGatheringGas()) {
+			continue;
+		}
+
 		auto targetBuildLocation = BWAPI::Broodwar->getBuildLocation(buildingType, unit->getTilePosition());
 		if (!unit->build(buildingType, targetBuildLocation))
 		{
@@ -195,6 +264,10 @@ void buildSupplyDepot()
 void buildBarracks()
 {
 	buildBuilding(BWAPI::UnitTypes::Terran_Barracks);
+}
+
+void buildRefinery() {
+	buildBuilding(BWAPI::UnitTypes::Terran_Refinery);
 }
 
 void UAlbertaBotModule::onFrame()
@@ -232,8 +305,26 @@ void UAlbertaBotModule::onFrame()
 		return;
 	}
 
+	// Get main building closest to start location.
+	auto startLocation = BWAPI::Broodwar->self()->getStartLocation();
+	BWAPI::Unit pMain = BWAPI::Broodwar->getClosestUnit(BWAPI::Position(startLocation.x, startLocation.y), BWAPI::Filter::IsResourceDepot);
+	if (pMain) // check if pMain is valid
+	{
+		BWAPI::Unitset myWorkers = pMain->getUnitsInRadius(1024, BWAPI::Filter::IsWorker && BWAPI::Filter::IsOwned);
+		int gasingWorkerCount = 0;
+		for (auto w : myWorkers) {
+			if (w->isGatheringGas()) {
+				BWAPI::Broodwar->drawCircleMap(w->getPosition().x, w->getPosition().y, 2, BWAPI::Colors::Green);
+			}
+		}
+	}
+
+	sendMineralWorker();
+	sendGasWorker();
 	if (BWAPI::Broodwar->self()->supplyTotal() < 40 && getFreeMinerals() >= 100)
 	{
+		int m = getFreeMinerals();
+		int t = BWAPI::Broodwar->self()->supplyTotal();
 		buildSupplyDepot();
 		return;
 	}
@@ -242,6 +333,11 @@ void UAlbertaBotModule::onFrame()
 	if (unitCount[BWAPI::Broodwar->self()->getRace().getWorker()] < 10 && getFreeMinerals() >= 50)
 	{
 		trainSCV();
+		return;
+	}
+
+	if (unitCount[BWAPI::UnitTypes::Terran_Refinery] < 1 && getFreeMinerals() >= 75) {
+		buildRefinery();
 		return;
 	}
 
@@ -293,40 +389,12 @@ void UAlbertaBotModule::onUnitCreate(BWAPI::Unit unit)
 	}
 }
 
-struct WorkerState {
-	int mineralWorker;
-	int gasWorker;
-	int buildingWorker;
-};
-
 void UAlbertaBotModule::onUnitComplete(BWAPI::Unit unit)
 {
 	if (Config::Modules::UsingGameCommander)
 	{
 		m_gameCommander.onUnitComplete(unit);
 	}
-
-	// Get main building closest to start location.
-	auto startLocation = BWAPI::Broodwar->self()->getStartLocation();
-	BWAPI::Unit pMain = BWAPI::Broodwar->getClosestUnit(BWAPI::Position(startLocation.x, startLocation.y), BWAPI::Filter::IsResourceDepot);
-	if (pMain) // check if pMain is valid
-	{
-		// Get sets of resources and workers
-		BWAPI::Unitset myResources = pMain->getUnitsInRadius(1024, BWAPI::Filter::IsMineralField);
-		if (!myResources.empty()) // check if we have resources nearby
-		{
-			BWAPI::Unitset myWorkers = pMain->getUnitsInRadius(512, BWAPI::Filter::IsWorker && BWAPI::Filter::IsIdle && BWAPI::Filter::IsOwned);
-			while (!myWorkers.empty()) // make sure we command all nearby idle workers, if any
-			{
-				for (auto u = myResources.begin(); u != myResources.end() && !myWorkers.empty(); ++u)
-				{
-					auto worker = *myWorkers.begin();
-					worker->gather(*u);
-					myWorkers.erase(myWorkers.begin());
-				}
-			}
-		} // myResources not empty
-	} // pMain != nullptr
 }
 
 void UAlbertaBotModule::onUnitShow(BWAPI::Unit unit)
