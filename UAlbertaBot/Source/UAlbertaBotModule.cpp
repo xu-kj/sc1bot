@@ -509,6 +509,9 @@ void UAlbertaBotModule::onFrame()
 		}
 		turn = (turn + 1) % totalTurns;
 	}
+	else if (turn % totalTurns == 7) {
+		// Do some scouting work
+	}
 	else {
 		turn += 1;
 	}
