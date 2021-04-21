@@ -28,7 +28,11 @@ struct State
 	int reservedGas = 0;
 	int scv = 0;
 	int marine = 0;
+	int miningMinerals = 0;
+	int miningGas = 0;
 } globalstate;
+
+enum Resource {gas, mineral};
 
 void reserveMinerals(int minerals)
 {
@@ -38,6 +42,11 @@ void reserveMinerals(int minerals)
 int getFreeMinerals()
 {
 	return BWAPI::Broodwar->self()->minerals() - globalstate.reservedMinerals;
+}
+
+int getFreeGas()
+{
+	return BWAPI::Broodwar->self()->gas() - globalstate.reservedGas;
 }
 
 void trainSCV()
@@ -82,6 +91,27 @@ void trainMarine()
 	}
 }
 
+BWAPI::Unit getClosestRefinery(BWAPI::Unit worker)
+{
+	BWAPI::Unit closestRefinery = nullptr;
+	double closestDistance = 0;
+
+	for (auto& unit : BWAPI::Broodwar->self()->getUnits())
+	{
+		if (unit->getType().isRefinery())
+		{
+			const double distance = unit->getDistance(worker);
+			if (!closestRefinery || distance < closestDistance)
+			{
+				closestRefinery = unit;
+				closestDistance = distance;
+			}
+		}
+	}
+
+	return closestRefinery;
+}
+
 BWAPI::Unit getClosestDepot(BWAPI::Unit worker)
 {
 	BWAPI::Unit closestDepot = nullptr;
@@ -103,39 +133,93 @@ BWAPI::Unit getClosestDepot(BWAPI::Unit worker)
 	return closestDepot;
 }
 
-void mineral() {
+BWAPI::Unit getClosestResourceField(BWAPI::Unit depot, BWAPI::UnitType unitType)
+{
+	BWAPI::Unit bestField = nullptr;
+	double bestDist = 0;
+
+	if (!depot) {
+		return bestField;
+	}
+
+	for (auto& resourcePatch : BWAPI::Broodwar->getAllUnits())
+	{
+		if ((resourcePatch->getType() == unitType))
+		{
+			double dist = resourcePatch->getDistance(depot);
+			if (!bestField || dist < bestDist)
+			{
+				bestField = resourcePatch;
+				bestDist = dist;
+			}
+		}
+	}
+
+	return bestField;
+}
+
+
+int getMineralingCount() {
 	const auto& units = BWAPI::Broodwar->self()->getUnits();
+	int miningMineralCount = 0;
 	for (const auto& unit : units) {
 		auto unitType = unit->getType();
 		if (unitType != unitType.getRace().getWorker()) {
 			continue;
 		}
 
-		if (!unit->isIdle() && !unit->isCompleted()) {
+		if (unit->isCarryingMinerals() || unit->isGatheringMinerals()) {
+			miningMineralCount++;
+		}
+	}
+	return miningMineralCount;
+}
+
+int getGasCount() {
+	const auto& units = BWAPI::Broodwar->self()->getUnits();
+	int miningGasCount = 0;
+	for (const auto& unit : units) {
+		auto unitType = unit->getType();
+		if (unitType != unitType.getRace().getWorker()) {
+			continue;
+		}
+
+		if (unit->isCarryingGas() || unit->isGatheringGas()) {
+			miningGasCount++;
+		}
+	}
+	return miningGasCount;
+}
+
+void mine(Resource resource) {
+	const auto& units = BWAPI::Broodwar->self()->getUnits();
+	boolean isMineral = (resource == Resource::mineral);
+	int miningCount = isMineral? getMineralingCount() : getGasCount();
+	int maxMiningCount = isMineral ? 8 : 2;
+	for (const auto& unit : units) {
+		auto unitType = unit->getType();
+		if (unitType != unitType.getRace().getWorker()) {
+			continue;
+		}
+
+		if (miningCount >= maxMiningCount) {
+			break;
+		}
+
+		if (unit->isCarryingMinerals() || unit->isGatheringMinerals() || unit->isCarryingGas() || unit->isGatheringGas()) {
+			continue;
+		}
+
+		if (!unit->isCompleted() || unit->isMoving()) {
 			continue;
 		}
 
 		BWAPI::Unit depot = getClosestDepot(unit);
+		auto bestResource = isMineral ? getClosestResourceField(depot, BWAPI::UnitTypes::Resource_Mineral_Field) : getClosestRefinery(depot);
 
-		if (depot)
-		{
-			BWAPI::Unit bestMineral = nullptr;
-			double bestDist = 100000;
-
-			for (auto& mineralPatch : BWAPI::Broodwar->getAllUnits())
-			{
-				if ((mineralPatch->getType() == BWAPI::UnitTypes::Resource_Mineral_Field))
-				{
-					double dist = mineralPatch->getDistance(depot);
-					if (!bestMineral || dist < bestDist)
-					{
-						bestMineral = mineralPatch;
-						bestDist = dist;
-					}
-				}
-			}
-
-			Micro::SmartRightClick(unit, bestMineral);
+		if (bestResource) {
+			Micro::SmartRightClick(unit, bestResource);
+			miningCount++;
 		}
 	}
 }
@@ -151,12 +235,22 @@ void buildBuilding(BWAPI::UnitType buildingType)
 			continue;
 		}
 
-		if (unit->isConstructing())
+		if (unit->isConstructing() || unit->isCarryingGas() || unit->isCarryingMinerals())
 		{
 			continue;
 		}
 
-		auto targetBuildLocation = BWAPI::Broodwar->getBuildLocation(buildingType, unit->getTilePosition());
+		BWAPI::TilePosition targetBuildLocation;
+		if (buildingType == BWAPI::UnitTypes::Terran_Refinery) {
+			auto closestGas = getClosestResourceField(getClosestDepot(unit), BWAPI::UnitTypes::Resource_Vespene_Geyser);
+			if (closestGas) {
+				targetBuildLocation = closestGas ->getTilePosition();
+			}
+		}
+		else {
+			targetBuildLocation = BWAPI::Broodwar->getBuildLocation(buildingType, unit->getTilePosition());
+			
+		}
 		if (!unit->build(buildingType, targetBuildLocation))
 		{
 			auto lastErr = BWAPI::Broodwar->getLastError();
@@ -165,6 +259,7 @@ void buildBuilding(BWAPI::UnitType buildingType)
 		{
 			reserveMinerals(buildingType.mineralPrice());
 		}
+
 		break;
 	}
 }
@@ -178,6 +273,11 @@ void buildSupplyDepot()
 void buildBarracks()
 {
 	buildBuilding(BWAPI::UnitTypes::Terran_Barracks);
+}
+
+void buildRefinery()
+{
+	buildBuilding(BWAPI::UnitTypes::Terran_Refinery);
 }
 
 std::map<BWAPI::UnitType, size_t> getUnitCount()
@@ -301,27 +401,36 @@ void UAlbertaBotModule::onFrame()
 
 	const auto supplyTotal = BWAPI::Broodwar->self()->supplyTotal();
 	const auto freeMinerals = getFreeMinerals();
-	if (supplyTotal < 40 && freeMinerals >= 100)
-	{
-		buildSupplyDepot();
-		return;
-	}
+	const auto freeGas = getFreeGas();
 
 	std::map<BWAPI::UnitType, size_t> unitCount = getUnitCount();
 	auto race = BWAPI::Broodwar->self()->getRace();
+	mine(Resource::mineral);
+	mine(Resource::gas);
 	if (unitCount[race.getWorker()] < 10 && freeMinerals >= 50)
 	{
 		trainSCV();
 		return;
 	}
 
-	if (unitCount[BWAPI::UnitTypes::Terran_Barracks] < 1 && freeMinerals >= 150)
+	if (unitCount[BWAPI::UnitTypes::Terran_Refinery] < 1 && freeMinerals >= BWAPI::UnitTypes::Terran_Refinery.mineralPrice()) {
+		buildRefinery();
+		return;
+	}
+
+	if (unitCount[BWAPI::UnitTypes::Terran_Refinery] >= 1 && supplyTotal < 40 && freeMinerals >= 100)
+	{
+		buildSupplyDepot();
+		return;
+	}
+
+	if (supplyTotal >= 40 && unitCount[BWAPI::UnitTypes::Terran_Barracks] < 1 && freeMinerals >= 150)
 	{
 		buildBarracks();
 		return;
 	}
 
-	if (unitCount[BWAPI::UnitTypes::Terran_Barracks] >= 1 && unitCount[BWAPI::UnitTypes::Terran_Marine] < 10 && freeMinerals >= 50)
+	if (unitCount[BWAPI::UnitTypes::Terran_Refinery] >= 1 && unitCount[BWAPI::UnitTypes::Terran_Barracks] >= 1 && unitCount[BWAPI::UnitTypes::Terran_Marine] < 10 && freeMinerals >= 50)
 	{
 		trainMarine();
 		return;
@@ -361,8 +470,6 @@ void UAlbertaBotModule::onUnitCreate(BWAPI::Unit unit)
 		globalstate.reservedMinerals -= unit->getType().mineralPrice();
 		globalstate.reservedGas -= unit->getType().gasPrice();
 	}
-
-	mineral();
 }
 
 void UAlbertaBotModule::onUnitComplete(BWAPI::Unit unit)
