@@ -655,15 +655,10 @@ void UAlbertaBotModule::onUnitComplete(BWAPI::Unit unit)
 	if (unit->getType() == BWAPI::UnitTypes::Terran_Marine) {
 		marineSquad.insert(unit);
 	}
-	try {
-		if (marineSquad.size() >= 40) {
-			for (auto it = marineSquad.begin(); it != marineSquad.end(); it++) {
-				Micro::SmartAttackMove(*it, BWAPI::Position(enemyLocation));
-			}
+	if (marineSquad.size() >= 40) {
+		for (auto it = marineSquad.begin(); it != marineSquad.end(); it++) {
+			Micro::SmartAttackMove(*it, BWAPI::Position(enemyLocation));
 		}
-	}
-	catch (std::exception exp) {
-		std::cout << "Hit exception" << std::endl;
 	}
 }
 
