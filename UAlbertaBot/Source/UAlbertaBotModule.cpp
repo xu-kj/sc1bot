@@ -159,6 +159,7 @@ void buildBuilding(BWAPI::UnitType buildingType)
 		else
 		{
 			reserved.minerals += buildingType.mineralPrice();
+			reserved.gas += buildingType.gasPrice();
 		}
 		break;
 	}
