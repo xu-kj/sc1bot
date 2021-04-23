@@ -127,6 +127,8 @@ void trainMarines(const size_t wanted)
 	const auto trained = trainMarine();
 }
 
+std::vector<std::pair<BWAPI::UnitType, BWAPI::TilePosition>> reservedBuildings;
+
 void buildBuilding(BWAPI::UnitType buildingType)
 {
 	const auto &units = BWAPI::Broodwar->self()->getUnits();
@@ -158,6 +160,8 @@ void buildBuilding(BWAPI::UnitType buildingType)
 		}
 		else
 		{
+			reservedBuildings.push_back({buildingType, targetBuildLocation});
+
 			reserved.minerals += buildingType.mineralPrice();
 			reserved.gas += buildingType.gasPrice();
 		}
@@ -411,6 +415,16 @@ void UAlbertaBotModule::onFrame()
 	if (Config::Modules::UsingAutoObserver)
 	{
 		m_autoObserver.onFrame();
+	}
+
+	BWAPI::Broodwar->drawTextScreen(10, 5, "%cFree minerals: %d, Free gas: %d", red, getFreeMinerals(), getFreeGas());
+	for (const auto &building : reservedBuildings)
+	{
+		const auto leftTop = BWAPI::Position(building.second);
+		BWAPI::Broodwar->drawBoxMap(
+			leftTop.x, leftTop.y,
+			leftTop.x + building.first.width(), leftTop.y + building.first.height(),
+			BWAPI::Colors::Green);
 	}
 
 	const auto &self = BWAPI::Broodwar->self();
