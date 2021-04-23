@@ -171,11 +171,13 @@ void buildBuilding(BWAPI::UnitType buildingType)
 
 void buildSupplyDepot(const BWAPI::Race &race)
 {
-	const auto supplyNeeded = 20 * 2;
-	const auto supplyTotal = BWAPI::Broodwar->self()->supplyTotal();
+	const int supplyUsed = BWAPI::Broodwar->self()->supplyUsed(race);
+	const int supplyTotal = BWAPI::Broodwar->self()->supplyTotal(race);
+
+	const double usage = static_cast<double>(supplyUsed) / static_cast<double>(supplyTotal);
 
 	const auto supplyProviderType = race.getSupplyProvider();
-	if (supplyTotal >= supplyNeeded || !canBuild(supplyProviderType))
+	if (usage < 0.8 || !canBuild(supplyProviderType))
 	{
 		return;
 	}
