@@ -5,15 +5,15 @@
         "Authors"                   : "David Churchill",
         "PrintInfoOnStart"          : false
     },
-        
-    "BWAPI" : 
+
+    "BWAPI" :
     {
         "SetLocalSpeed"             : 0,
         "SetFrameSkip"              : 0,
         "UserInput"                 : true,
         "CompleteMapInformation"    : false
     },
-    
+
     "Micro" :
     {
         "UseSparcraftSimulation"    : true,
@@ -26,7 +26,7 @@
         "RegroupRadius"             : 300,
         "UnitNearEnemyRadius"       : 600
     },
-    
+
     "Macro" :
     {
         "BOSSFrameLimit"            : 160,
@@ -39,7 +39,7 @@
     {
         "ErrorLogFilename"          : "bwapi-data/AI/UAlbertaBot_ErrorLog.txt",
         "LogAssertToErrorFile"      : false,
-        
+
         "DrawGameInfo"              : true,
         "DrawUnitHealthBars"        : true,
         "DrawProductionInfo"        : true,
@@ -62,34 +62,34 @@
         "DrawBOSSStateInfo"         : false,
         "PrintModuleTimeout"        : false
     },
-    
+
     "Modules" :
     {
-        "UseGameCommander"          : true,
-        "UseScoutManager"           : true,
-        "UseCombatCommander"        : true,
-        "UseBuildOrderSearch"       : true,
-        "UseStrategyIO"             : true,
+        "UseGameCommander"          : false,
+        "UseScoutManager"           : false,
+        "UseCombatCommander"        : false,
+        "UseBuildOrderSearch"       : false,
+        "UseStrategyIO"             : false,
         "UseAutoObserver"           : false
     },
-    
+
     "Tools" :
     {
         "MapGridSize"               : 320
     },
-    
+
     "Strategy" :
     {
         "Protoss"                   : "Protoss_ZealotRush",
         "Terran"                    : "Terran_MarineRush",
         "Zerg"                      : "Zerg_ZerglingRush",
-        
+
         "ScoutGasSteal"             : false,
         "ScoutHarassEnemy"          : true,
-        
+
         "ReadDirectory"             : "bwapi-data/read/",
         "WriteDirectory"            : "bwapi-data/write/",
-                
+
         "UseEnemySpecificStrategy"  : true,
         "EnemySpecificStrategy"     :
         {
@@ -97,7 +97,7 @@
             "BotName2"              : { "Protoss" : "Protoss_DragoonRush", "Terran" : "Terran_MarineRush", "Zerg" : "Zerg_ZerglingRush" },
             "LetaBot"               : { "Protoss" : "Protoss_ZealotRush", "Terran" : "Terran_4RaxMarines", "Zerg" : "Zerg_ZerglingRush" }
         },
-        
+
         "Strategies" :
         {
             "Protoss_ZealotRush"    : { "Race" : "Protoss", "OpeningBuildOrder" : ["Probe", "Probe", "Probe", "Probe", "Pylon", "Probe", "Gateway", "Gateway", "Probe", "Probe", "Zealot", "Pylon", "Zealot", "Zealot",  "Probe", "Zealot", "Zealot", "Probe", "Pylon", "Zealot", "Gateway", "Probe", "Pylon", "Probe", "Zealot", "Probe", "Zealot", "Zealot", "Zealot", "Zealot", "Pylon", "Probe", "Zealot", "Zealot", "Zealot" ]},
