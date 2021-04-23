@@ -47,6 +47,8 @@ bool canBuild(BWAPI::UnitType unitType)
 bool trainSCV()
 {
 	const auto &units = BWAPI::Broodwar->self()->getUnits();
+	const auto workerType = BWAPI::Broodwar->self()->getRace().getWorker();
+
 	for (const auto &unit : units)
 	{
 		const auto unitType = unit->getType();
@@ -77,6 +79,7 @@ bool trainSCV()
 bool trainMarine()
 {
 	const auto &units = BWAPI::Broodwar->self()->getUnits();
+	const auto marineType = BWAPI::UnitTypes::Terran_Marine;
 	for (const auto &unit : units)
 	{
 		const auto unitType = unit->getType();
@@ -90,7 +93,7 @@ bool trainMarine()
 			continue;
 		}
 
-		if (!unit->train(BWAPI::UnitTypes::Terran_Marine))
+		if (!unit->train(marineType))
 		{
 			auto lastErr = BWAPI::Broodwar->getLastError();
 		}
