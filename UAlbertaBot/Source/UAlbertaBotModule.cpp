@@ -476,11 +476,6 @@ void UAlbertaBotModule::onUnitCreate(BWAPI::Unit unit)
 		m_gameCommander.onUnitCreate(unit);
 	}
 
-	if (unit->getPlayer() != BWAPI::Broodwar->self())
-	{
-		return;
-	}
-
 	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType().isBuilding())
 	{
 		reserved.minerals -= unit->getType().mineralPrice();
@@ -494,13 +489,6 @@ void UAlbertaBotModule::onUnitComplete(BWAPI::Unit unit)
 	{
 		m_gameCommander.onUnitComplete(unit);
 	}
-
-	if (unit->getPlayer() != BWAPI::Broodwar->self())
-	{
-		return;
-	}
-
-	unit = unit;
 }
 
 void UAlbertaBotModule::onUnitShow(BWAPI::Unit unit)
