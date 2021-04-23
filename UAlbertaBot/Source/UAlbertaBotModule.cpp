@@ -185,11 +185,10 @@ void buildSupplyDepot(const BWAPI::Race &race)
 	buildBuilding(supplyProviderType);
 }
 
-void buildBarrack(const BWAPI::Race &race)
+void buildBarrack(const BWAPI::Race &race, const size_t wanted)
 {
 	const auto barrackType = BWAPI::UnitTypes::Terran_Barracks;
-	const auto barracksWanted = 1;
-	if (unitCount[barrackType] >= barracksWanted || !canBuild(barrackType))
+	if (unitCount[barrackType] >= wanted || !canBuild(barrackType))
 	{
 		return;
 	}
@@ -438,12 +437,12 @@ void UAlbertaBotModule::onFrame()
 	// * ...
 
 	// building orders
-	trainWorkers(self->getRace(), 10);
-	trainMarines(10);
+	trainWorkers(self->getRace(), 20);
+	trainMarines(180);
 
 	// worker orders
 	buildSupplyDepot(self->getRace());						  // building
-	buildBarrack(self->getRace());							  // building
+	buildBarrack(self->getRace(), 2);						  // building
 	buildRefinery(self->getRace(), self->getStartLocation()); // building
 	gatherGas(self->getStartLocation(), 3);
 	gatherMinerals(self->getStartLocation());
