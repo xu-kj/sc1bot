@@ -18,6 +18,7 @@
 #include "Global.h"
 #include "StrategyManager.h"
 #include "MapTools.h"
+#include "Micro.h";
 
 using namespace UAlbertaBot;
 
@@ -28,6 +29,8 @@ struct ReservedResources
 } reserved;
 
 std::map<BWAPI::UnitType, size_t> unitCount;
+
+BWAPI::Position enemyLocation;
 
 int getFreeMinerals()
 {
@@ -366,6 +369,15 @@ void UAlbertaBotModule::onStart()
 	}
 
 	//Global::Map().saveMapToFile("map.txt");
+
+	for (const auto& startLocation : BWAPI::Broodwar->getStartLocations())
+	{
+		if (startLocation != BWAPI::Broodwar->self()->getStartLocation())
+		{
+			// only works for 1v1 maps
+			enemyLocation = BWAPI::Position(startLocation);
+		}
+	}
 }
 
 void UAlbertaBotModule::onEnd(bool isWinner)
@@ -421,6 +433,11 @@ void UAlbertaBotModule::onFrame()
 		m_autoObserver.onFrame();
 	}
 
+	for (const auto &startLocation : BWAPI::Broodwar->getStartLocations())
+	{
+		BWAPI::Broodwar->drawCircleMap(BWAPI::Position(startLocation), 20, BWAPI::Colors::Blue, false);
+	}
+	BWAPI::Broodwar->drawCircleMap(BWAPI::Position(enemyLocation), 30, BWAPI::Colors::Red, false);
 	BWAPI::Broodwar->drawTextScreen(10, 5, "%cFree minerals: %d, Free gas: %d", red, getFreeMinerals(), getFreeGas());
 	for (const auto &building : reservedBuildings)
 	{
@@ -445,17 +462,25 @@ void UAlbertaBotModule::onFrame()
 
 	// worker orders
 	buildSupplyDepot(self->getRace());						  // building
-	buildBarrack(self->getRace(), 2);						  // building
+	buildBarrack(self->getRace(), 4);						  // building
 	buildRefinery(self->getRace(), self->getStartLocation()); // building
 	gatherGas(self->getStartLocation(), 3);
 	gatherMinerals(self->getStartLocation());
 }
+
+std::set<BWAPI::Unit> marines;
 
 void UAlbertaBotModule::onUnitDestroy(BWAPI::Unit unit)
 {
 	if (Config::Modules::UsingGameCommander)
 	{
 		m_gameCommander.onUnitDestroy(unit);
+	}
+
+	const auto pos = marines.find(unit);
+	if (pos != marines.end())
+	{
+		marines.erase(pos);
 	}
 }
 
@@ -491,6 +516,18 @@ void UAlbertaBotModule::onUnitComplete(BWAPI::Unit unit)
 	if (Config::Modules::UsingGameCommander)
 	{
 		m_gameCommander.onUnitComplete(unit);
+	}
+
+	if (unit->getType() == BWAPI::UnitTypes::Terran_Marine)
+	{
+		marines.insert(unit);
+	}
+	if (marines.size() >= 40)
+	{
+		for (const auto &marine : marines)
+		{
+			Micro::SmartAttackMove(marine, BWAPI::Position(enemyLocation));
+		}
 	}
 }
 
