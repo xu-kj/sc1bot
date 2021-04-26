@@ -368,6 +368,7 @@ void UAlbertaBotModule::onStart()
 	ParseUtils::ParseConfigFile(Config::ConfigFile::ConfigFileLocation);
 
 	// Set our BWAPI options here
+	// TODO: Fix the performance problem running under 42x speed
 	Config::BWAPIOptions::SetLocalSpeed = 15;
 	BWAPI::Broodwar->setLocalSpeed(Config::BWAPIOptions::SetLocalSpeed);
 	BWAPI::Broodwar->setFrameSkip(Config::BWAPIOptions::SetFrameSkip);
@@ -410,6 +411,7 @@ void UAlbertaBotModule::onStart()
 		}
 	}
 
+	globalstate = { 400, 0, 0, 0, 0, 0 };
 	reserveMap = Grid<int>(BWAPI::Broodwar->mapWidth(), BWAPI::Broodwar->mapHeight(), 0);
 }
 
@@ -461,7 +463,10 @@ void UAlbertaBotModule::onFrame()
 	const auto freeMinerals = getFreeMinerals();
 	const auto freeGas = getFreeGas();
 	float testParameter = (float)supplyUsed / (float)supplyTotal;
-	BWAPI::Broodwar->drawTextScreen(10, 5, "%cFree minerals: %d, Free gas: %d, Supply used: %d, Supply total: %d, Test parameter: %f", red, getFreeMinerals(), getFreeGas(), supplyUsed, supplyTotal, testParameter);
+	// The height for each line of text is about 15px
+	BWAPI::Broodwar->drawTextScreen(10, 5, "%cLocal speed: %d", red, Config::BWAPIOptions::SetLocalSpeed);
+	BWAPI::Broodwar->drawTextScreen(10, 20, "%cFree minerals: %d, Free gas: %d, Supply used: %d, Supply total: %d, Test parameter: %f", red, getFreeMinerals(), getFreeGas(), supplyUsed, supplyTotal, testParameter);
+	BWAPI::Broodwar->drawTextScreen(10, 35, "%cReserved minerals: %d, Reserved gas: %d", red, globalstate.reservedMinerals, globalstate.reservedGas);
 	for (const auto& test : reservedBuildingPositions) {
 		BWAPI::Position position1 = BWAPI::Position(test.first);
 		BWAPI::Position position2 = BWAPI::Position(BWAPI::TilePosition(test.first.x + test.second.tileWidth(), test.first.y + test.second.tileHeight()));
@@ -470,7 +475,7 @@ void UAlbertaBotModule::onFrame()
 	std::map<BWAPI::UnitType, size_t> unitCount = getUnitCount();
 	auto race = BWAPI::Broodwar->self()->getRace();
 
-	if (unitCount[BWAPI::UnitTypes::Terran_Comsat_Station] > 1 || getFreeGas() >= BWAPI::UnitTypes::Terran_Comsat_Station.gasPrice()) {
+	if (unitCount[BWAPI::UnitTypes::Terran_Comsat_Station] >= 1 || getFreeGas() >= BWAPI::UnitTypes::Terran_Comsat_Station.gasPrice()) {
 		sendGasWorkers(0);
 	}
 	else {
@@ -542,19 +547,12 @@ void UAlbertaBotModule::onSendText(std::string text)
 	ParseUtils::ParseTextCommand(text);
 }
 
+// ?????? TODO: Building refinery doesn't trigger onUnitCreate ??????
 void UAlbertaBotModule::onUnitCreate(BWAPI::Unit unit)
 {
 	if (Config::Modules::UsingGameCommander)
 	{
 		m_gameCommander.onUnitCreate(unit);
-	}
-}
-
-void UAlbertaBotModule::onUnitComplete(BWAPI::Unit unit)
-{
-	if (Config::Modules::UsingGameCommander)
-	{
-		m_gameCommander.onUnitComplete(unit);
 	}
 
 	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType().isBuilding())
@@ -567,6 +565,25 @@ void UAlbertaBotModule::onUnitComplete(BWAPI::Unit unit)
 			freeTiles(it->first, it->second.tileWidth(), it->second.tileHeight());
 		}
 	}
+}
+
+void UAlbertaBotModule::onUnitComplete(BWAPI::Unit unit)
+{
+	if (Config::Modules::UsingGameCommander)
+	{
+		m_gameCommander.onUnitComplete(unit);
+	}
+
+	/*if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType().isBuilding())
+	{
+		globalstate.reservedMinerals -= unit->getType().mineralPrice();
+		globalstate.reservedGas -= unit->getType().gasPrice();
+
+		auto it = reservedBuildingPositions.find(unit->getTilePosition());
+		if (it != reservedBuildingPositions.end()) {
+			freeTiles(it->first, it->second.tileWidth(), it->second.tileHeight());
+		}
+	}*/
 
 	if (unit->getType() == BWAPI::UnitTypes::Terran_Marine) {
 		marineSquad.insert(unit);
