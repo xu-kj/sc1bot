@@ -461,6 +461,9 @@ void UAlbertaBotModule::onEnd(bool isWinner)
 	Grid<int> reserveMap;
 }
 
+int actionToken = 0;
+const int actionTokenLimit = 10;
+
 void UAlbertaBotModule::onFrame()
 {
 	if (BWAPI::Broodwar->getFrameCount() > 100000)
@@ -513,6 +516,7 @@ void UAlbertaBotModule::onFrame()
 	std::map<BWAPI::UnitType, size_t> unitCount = getUnitCount();
 	auto race = BWAPI::Broodwar->self()->getRace();
 
+	// Critical actions we do on every frame
 	if (unitCount[BWAPI::UnitTypes::Terran_Comsat_Station] < 1 || getFreeGas() < 150) {
 		sendGasWorkers(1);
 	}
@@ -524,38 +528,54 @@ void UAlbertaBotModule::onFrame()
 	if (testParameter > 0.8 && canBuild(BWAPI::UnitTypes::Terran_Supply_Depot))
 	{
 		buildSupplyDepot();
-		return;
 	}
 	else {
 		if (testParameter < 0.8 && unitCount[race.getWorker()] < 20 && canBuild(race.getWorker()))
 		{
 			trainSCV();
-			return;
 		}
 
 		if (BWAPI::Broodwar->self()->supplyUsed() < supplyTotal && unitCount[BWAPI::UnitTypes::Terran_Barracks] >= 1 && canBuild(BWAPI::UnitTypes::Terran_Marine))
 		{
 			trainMarine();
-			return;
 		}
 	}
 
+	// Less important/frequent actions are splitted to different frame using actionToken
+	actionToken = (actionToken + 1) % actionTokenLimit;
+
 	if (unitCount[BWAPI::UnitTypes::Terran_Refinery] < 1 && canBuild(BWAPI::UnitTypes::Terran_Refinery)) {
+		// Only check for refinery on 1/10 frames (that's still a lot of wasted resources)
+		if (actionToken % 10 != 1) {
+			return;
+		}
 		buildRefinery();
 		return;
 	}
 	else if (unitCount[BWAPI::UnitTypes::Terran_Refinery] >= 1) {
 		if (unitCount[BWAPI::UnitTypes::Terran_Barracks] < 1 && canBuild(BWAPI::UnitTypes::Terran_Barracks))
 		{
+			// Only check for refinery on 8/10 frames (Barracks are important)
+			if (actionToken % 5 == 1) {
+				return;
+			}
 			buildBarracks();
 			return;
 		}
 		else if (unitCount[BWAPI::UnitTypes::Terran_Barracks] >= 1 && unitCount[BWAPI::UnitTypes::Terran_Academy] < 1 && canBuild(BWAPI::UnitTypes::Terran_Academy)) {
+			// Only check for refinery on 1/10 frames (that's still a lot of wasted resources)
+			if (actionToken % 10 != 2) {
+				return;
+			}
 			buildAcademy();
 			return;
 		}
 		else if (unitCount[BWAPI::UnitTypes::Terran_Academy] >= 1 && unitCount[BWAPI::UnitTypes::Terran_Comsat_Station] < 1 && canBuild(BWAPI::UnitTypes::Terran_Comsat_Station))
 		{
+			// Only check for refinery on 1/10 frames (that's still a lot of wasted resources)
+			if (actionToken % 10 != 3) {
+				return;
+			}
 			BWAPI::Unit depot = getClosestDepot(startLocation);
 			if (depot && depot->canBuildAddon(BWAPI::UnitTypes::Terran_Comsat_Station)) {
 				buildComsatStation();
@@ -563,6 +583,10 @@ void UAlbertaBotModule::onFrame()
 			}
 		}
 		else if (unitCount[BWAPI::UnitTypes::Terran_Academy] >= 1) {
+			// Only check for refinery on 1/10 frames (that's still a lot of wasted resources)
+			if (actionToken % 10 != 4) {
+				return;
+			}
 			upgradeResearchType(BWAPI::UpgradeTypes::U_238_Shells);
 
 			if (unitCount[BWAPI::UnitTypes::Terran_Barracks] < 4 && canBuild(BWAPI::UnitTypes::Terran_Barracks))
