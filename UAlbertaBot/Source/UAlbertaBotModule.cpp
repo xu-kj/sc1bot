@@ -40,13 +40,21 @@ public:
 	}
 };
 
-enum Resource { gas, mineral };
 std::unordered_set<BWAPI::Unit> marineSquad;
+std::unordered_set<BWAPI::Unit> workers;
+std::unordered_set<BWAPI::Unit> barracks;
 std::unordered_map<BWAPI::TilePosition, BWAPI::UnitType, MyHashFunction> reservedBuildingPositions;
 BWAPI::TilePosition startLocation;
 BWAPI::Position enemyLocation;
 BWAPI::Unit academy;
+BWAPI::Unit comsat;
+BWAPI::Unit refinery;
+BWAPI::Unit depot;
 Grid<int> reserveMap;
+boolean beingAttacked = false;
+std::map<BWAPI::UnitType, size_t> unitCount;
+std::map<BWAPI::UnitType, size_t> completedUnitCount;
+
 
 void reserveMinerals(int minerals)
 {
@@ -68,28 +76,19 @@ int getFreeGas()
 	return BWAPI::Broodwar->self()->gas() - globalstate.reservedGas;
 }
 
-void trainSCV()
+BWAPI::Unit getClosestDepot(BWAPI::TilePosition startPosition)
 {
-	const auto& units = BWAPI::Broodwar->self()->getUnits();
-	for (const auto& unit : units)
-	{
-		auto unitType = unit->getType();
-		auto t1 = unitType.isBuilding();
-		auto t2 = unitType.isResourceDepot();
-		if (!unitType.isResourceDepot())
-		{
-			continue;
-		}
-
-		const auto workerType = unitType.getRace().getWorker();
-		if (unit->isIdle() && !unit->train(workerType))
-		{
-			auto lastErr = BWAPI::Broodwar->getLastError();
-		}
-		break;
-	}
+	return  BWAPI::Broodwar->getClosestUnit(BWAPI::Position(startPosition), BWAPI::Filter::IsResourceDepot && BWAPI::Filter::IsCompleted && BWAPI::Filter::IsOwned);
 }
 
+BWAPI::Unit getClosestMineralField(BWAPI::TilePosition startPosition)
+{
+	return  BWAPI::Broodwar->getClosestUnit(BWAPI::Position(startPosition), BWAPI::Filter::IsMineralField);
+}
+
+BWAPI::Unit getClosestGasRefinery(BWAPI::TilePosition startPosition) {
+	return  BWAPI::Broodwar->getClosestUnit(BWAPI::Position(startPosition), BWAPI::Filter::IsRefinery && BWAPI::Filter::IsCompleted && BWAPI::Filter::IsOwned);
+}
 
 boolean canBuild(BWAPI::UnitType type) {
 	if (getFreeMinerals() >= type.mineralPrice() && getFreeGas() >= type.gasPrice()) {
@@ -97,6 +96,28 @@ boolean canBuild(BWAPI::UnitType type) {
 	}
 
 	return false;
+}
+
+void trainSCV(BWAPI::UnitType workerType)
+{
+	if (depot && !depot->isUpgrading() && !depot->train(workerType)) {
+		auto lastErr = BWAPI::Broodwar->getLastError();
+	}
+}
+
+void trainMarine()
+{
+	for (const auto& unit : barracks)
+	{
+		if (!canBuild(BWAPI::UnitTypes::Terran_Marine)) {
+			break;
+		}
+
+		if (!unit->train(BWAPI::UnitTypes::Terran_Marine))
+		{
+			auto lastErr = BWAPI::Broodwar->getLastError();
+		}
+	}
 }
 
 
@@ -154,58 +175,10 @@ void freeTiles(BWAPI::TilePosition position, int width, int height)
 }
 
 
-void trainMarine()
-{
-	const auto& units = BWAPI::Broodwar->self()->getUnits();
-	for (const auto& unit : units)
-	{
-		auto unitType = unit->getType();
-		auto isBuilding = unitType.isBuilding();
-		if (unitType != BWAPI::UnitTypes::Terran_Barracks)
-		{
-			continue;
-		}
-
-		if (!canBuild(BWAPI::UnitTypes::Terran_Marine)) {
-			break;
-		}
-
-		if (unit->isIdle() && !unit->train(BWAPI::UnitTypes::Terran_Marine))
-		{
-			auto lastErr = BWAPI::Broodwar->getLastError();
-		}
-	}
-}
-
-BWAPI::Unit getClosestRefinery(BWAPI::TilePosition startPosition)
-{
-	return  BWAPI::Broodwar->getClosestUnit(BWAPI::Position(startPosition.x, startPosition.y), BWAPI::Filter::IsRefinery);
-}
-
-BWAPI::Unit getClosestDepot(BWAPI::TilePosition startPosition)
-{
-	return  BWAPI::Broodwar->getClosestUnit(BWAPI::Position(startPosition.x, startPosition.y), BWAPI::Filter::IsResourceDepot);
-}
-
-BWAPI::Unit getClosestMineralField(BWAPI::TilePosition startPosition)
-{
-	return  BWAPI::Broodwar->getClosestUnit(BWAPI::Position(startPosition.x, startPosition.y), BWAPI::Filter::IsMineralField);
-}
-
-BWAPI::Unit getClosestGasRefinery(BWAPI::TilePosition startPosition) {
-	return  BWAPI::Broodwar->getClosestUnit(BWAPI::Position(startPosition.x, startPosition.y), BWAPI::Filter::IsRefinery && BWAPI::Filter::IsCompleted && BWAPI::Filter::IsOwned);
-}
-
-
 int getGasCount() {
 	const auto& units = BWAPI::Broodwar->self()->getUnits();
 	int miningGasCount = 0;
-	for (const auto& unit : units) {
-		auto unitType = unit->getType();
-		if (unitType != unitType.getRace().getWorker()) {
-			continue;
-		}
-
+	for (const auto& unit : workers) {
 		if (unit->isCarryingGas() || unit->isGatheringGas()) {
 			miningGasCount++;
 		}
@@ -214,17 +187,15 @@ int getGasCount() {
 }
 
 void sendMineralWorkers() {
-	BWAPI::Unit depot = getClosestDepot(startLocation);
 	if (depot)
 	{
 		BWAPI::Unit mineralField = getClosestMineralField(depot->getTilePosition());
 		if (mineralField)
 		{
-			BWAPI::Unitset units = BWAPI::Broodwar->self()->getUnits();
-			for (const auto& unit : units)
+			for (const auto& unit : workers)
 			{
 				auto unitType = unit->getType();
-				if (unitType != unitType.getRace().getWorker() || !unit->isIdle()) {
+				if (!unit->isIdle()) {
 					continue;
 				}
 
@@ -235,26 +206,18 @@ void sendMineralWorkers() {
 }
 
 void sendGasWorkers(unsigned int targetWorkingCount) {
-	BWAPI::Unit depot = getClosestDepot(startLocation);
 	unsigned int gasWorkingCount = 0;
 	if (!depot)
 	{
 		return;
 	}
 
-	auto myGasRefinery = getClosestGasRefinery(depot->getTilePosition());
-	if (!myGasRefinery)
+	if (!refinery)
 	{
 		return;
 	}
-	BWAPI::Unitset units = BWAPI::Broodwar->self()->getUnits();
 	gasWorkingCount = getGasCount();
-	for (const auto& unit : units) {
-		auto unitType = unit->getType();
-		if (unitType != unitType.getRace().getWorker()) {
-			continue;
-		}
-
+	for (const auto& unit : workers) {
 		if (gasWorkingCount == targetWorkingCount) {
 			break;
 		}
@@ -268,11 +231,11 @@ void sendGasWorkers(unsigned int targetWorkingCount) {
 		}
 
 		if (gasWorkingCount < targetWorkingCount) {
-			if (unit->isCarryingGas() || unit->isGatheringGas() || unit->isConstructing() || unit->isAttacking()) {
+			if (unit->isCarryingGas() || unit->isGatheringGas() || unit->isConstructing() || unit->isAttacking() || unit->isRepairing()) {
 				continue;
 			}
 
-			Micro::SmartRightClick(unit, myGasRefinery);
+			Micro::SmartRightClick(unit, refinery);
 			gasWorkingCount++;
 			continue;
 		}
@@ -281,16 +244,9 @@ void sendGasWorkers(unsigned int targetWorkingCount) {
 
 void buildBuilding(BWAPI::UnitType buildingType)
 {
-	const auto& units = BWAPI::Broodwar->self()->getUnits();
-	for (const auto& unit : units)
+	for (const auto& unit : workers)
 	{
-		auto unitType = unit->getType();
-		if (!unitType.isWorker())
-		{
-			continue;
-		}
-
-		if (unit->isConstructing() || unit->isCarryingGas() || unit->isCarryingMinerals())
+		if (unit->isConstructing() || unit->isCarryingGas() || unit->isCarryingMinerals() || unit->isRepairing() || unit->isAttacking())
 		{
 			continue;
 		}
@@ -310,6 +266,23 @@ void buildBuilding(BWAPI::UnitType buildingType)
 			reserveTiles(targetBuildLocation, buildingType.tileWidth(), buildingType.tileHeight());
 			reserveMinerals(buildingType.mineralPrice());
 			reserveGas(buildingType.gasPrice());
+		}
+		break;
+	}
+}
+
+void repair(BWAPI::Unit building) {
+	for (const auto& unit : workers)
+	{
+		if (unit->isConstructing() || unit->isCarryingGas() || unit->isCarryingMinerals() || unit->isRepairing() || unit->isAttacking())
+		{
+			continue;
+		}
+
+		if (unit->canRepair(building)) {
+			if (!unit->repair(building)) {
+				auto lastErr = BWAPI::Broodwar->getLastError();
+			}
 		}
 		break;
 	}
@@ -360,28 +333,6 @@ void upgradeResearchType(BWAPI::UpgradeType researchType) {
 			academy->upgrade(researchType);
 		}
 	}
-}
-
-std::map<BWAPI::UnitType, size_t> getUnitCount()
-{
-	const auto& units = BWAPI::Broodwar->self()->getUnits();
-
-	std::map<BWAPI::UnitType, size_t> counter;
-	for (const auto& unit : units)
-	{
-		auto unitType = unit->getType();
-
-		auto search = counter.find(unitType);
-		if (search != counter.end())
-		{
-			search->second += 1;
-		}
-		else
-		{
-			counter[unitType] = 1;
-		}
-	}
-	return counter;
 }
 
 UAlbertaBotModule::UAlbertaBotModule()
@@ -438,6 +389,8 @@ void UAlbertaBotModule::onStart()
 		}
 	}
 
+	depot = getClosestDepot(startLocation);
+
 	reserveMap = Grid<int>(BWAPI::Broodwar->mapWidth(), BWAPI::Broodwar->mapHeight(), 0);
 }
 
@@ -471,6 +424,49 @@ void UAlbertaBotModule::onFrame()
 	const char green = '\x07';
 	const char white = '\x04';
 
+	//const auto& units = BWAPI::Broodwar->self()->getUnits();
+
+	//std::map<BWAPI::UnitType, size_t> counter;
+	//for (const auto& unit : units)
+	//{
+	//	if (unit->isUnderAttack()) {
+	//		BWAPI::Unit attacker = BWAPI::Broodwar->getClosestUnit(unit->getPosition(), BWAPI::Filter::IsEnemy);
+	//		if (!attacker) {
+	//			if (comsat->canUseTech(BWAPI::TechTypes::Scanner_Sweep)) {
+	//				comsat->useTech(BWAPI::TechTypes::Scanner_Sweep, unit->getPosition());
+	//			}
+	//			attacker = BWAPI::Broodwar->getClosestUnit(unit->getPosition(), BWAPI::Filter::IsEnemy);
+	//		}
+
+	//		if (attacker) {
+	//			beingAttacked = true;
+	//			for (const auto& unit : marineSquad) {
+	//				unit->attack(attacker);
+	//			}
+	//		}
+
+	//		if (!attacker) {
+	//			beingAttacked = false;
+	//		}
+
+	//		if (unit->getType().isBuilding() && unit->canRepair()) {
+	//			repair(unit);
+	//		}
+	//	}
+	//}
+
+	//if (beingAttacked) {
+	//	auto attacker = BWAPI::Broodwar->getClosestUnit(BWAPI::Position(startLocation), BWAPI::Filter::IsEnemy);
+	//	if (attacker) {
+	//		for (const auto& unit : marineSquad) {
+	//			unit->attack(attacker);
+	//		}
+	//	}
+	//	else {
+	//		beingAttacked = false;
+	//	}
+	//}
+
 	//if (!Config::ConfigFile::ConfigFileFound)
 	//{
 	//	BWAPI::Broodwar->drawBoxScreen(0, 0, 450, 100, BWAPI::Colors::Black, true);
@@ -495,6 +491,16 @@ void UAlbertaBotModule::onFrame()
 	//	return;
 	//}
 
+	if (refinery == nullptr) {
+		refinery = getClosestGasRefinery(startLocation);
+		if (refinery) {
+			unitCount[BWAPI::UnitTypes::Terran_Refinery] = 1;
+			completedUnitCount[BWAPI::UnitTypes::Terran_Refinery] = 1;
+			globalstate.reservedMinerals -= BWAPI::UnitTypes::Terran_Refinery.mineralPrice();
+			globalstate.reservedGas -= BWAPI::UnitTypes::Terran_Refinery.gasPrice();
+		}
+	}
+
 	const auto supplyTotal = BWAPI::Broodwar->self()->supplyTotal();
 	const auto supplyUsed = BWAPI::Broodwar->self()->supplyUsed();
 	const auto freeMinerals = getFreeMinerals();
@@ -506,10 +512,9 @@ void UAlbertaBotModule::onFrame()
 		BWAPI::Position position2 = BWAPI::Position(BWAPI::TilePosition(test.first.x + test.second.tileWidth(), test.first.y + test.second.tileHeight()));
 		BWAPI::Broodwar->drawBoxMap(position1.x, position1.y, position2.x, position2.y, BWAPI::Colors::Green);
 	}
-	std::map<BWAPI::UnitType, size_t> unitCount = getUnitCount();
 	auto race = BWAPI::Broodwar->self()->getRace();
 
-	if (unitCount[BWAPI::UnitTypes::Terran_Comsat_Station] < 1 || getFreeGas() < 150) {
+	if (completedUnitCount[BWAPI::UnitTypes::Terran_Comsat_Station] < 1 || getFreeGas() < 150) {
 		sendGasWorkers(1);
 	}
 	else {
@@ -517,55 +522,56 @@ void UAlbertaBotModule::onFrame()
 	}
 	sendMineralWorkers();
 
+	if (unitCount[BWAPI::UnitTypes::Terran_Refinery] < 1 && canBuild(BWAPI::UnitTypes::Terran_Refinery)) {
+		buildRefinery();
+		return;
+	}
+	else if (completedUnitCount[BWAPI::UnitTypes::Terran_Refinery] >= 1) {
+		if (unitCount[BWAPI::UnitTypes::Terran_Barracks] < 1 && canBuild(BWAPI::UnitTypes::Terran_Barracks))
+		{
+			buildBarracks();
+			return;
+		}
+		else if (completedUnitCount[BWAPI::UnitTypes::Terran_Barracks] >= 1 && unitCount[BWAPI::UnitTypes::Terran_Academy] < 1 && canBuild(BWAPI::UnitTypes::Terran_Academy)) {
+			buildAcademy();
+			return;
+		}
+		else if (completedUnitCount[BWAPI::UnitTypes::Terran_Academy] >= 1) {
+			if (unitCount[BWAPI::UnitTypes::Terran_Comsat_Station] < 1 && canBuild(BWAPI::UnitTypes::Terran_Comsat_Station)) {
+				BWAPI::Unit depot = getClosestDepot(startLocation);
+				if (depot && depot->canBuildAddon(BWAPI::UnitTypes::Terran_Comsat_Station)) {
+					buildComsatStation();
+					return;
+				}
+			}
+
+			//upgradeResearchType(BWAPI::UpgradeTypes::U_238_Shells);
+
+			if (completedUnitCount[BWAPI::UnitTypes::Terran_Barracks] < 4 && canBuild(BWAPI::UnitTypes::Terran_Barracks))
+			{
+				buildBarracks();
+				return;
+			}
+
+		}
+	}
+
 	if (testParameter > 0.8 && canBuild(BWAPI::UnitTypes::Terran_Supply_Depot))
 	{
 		buildSupplyDepot();
 		return;
 	}
 	else {
-		if (testParameter < 0.8 && unitCount[race.getWorker()] < 20 && canBuild(race.getWorker()))
+		if (testParameter < 0.7 && unitCount[race.getWorker()] < 20 && canBuild(race.getWorker()))
 		{
-			trainSCV();
+			trainSCV(BWAPI::UnitTypes::Terran_SCV);
 			return;
 		}
 
-		if (BWAPI::Broodwar->self()->supplyUsed() < supplyTotal && unitCount[BWAPI::UnitTypes::Terran_Barracks] >= 1 && canBuild(BWAPI::UnitTypes::Terran_Marine))
+		if (supplyUsed < supplyTotal && completedUnitCount[BWAPI::UnitTypes::Terran_Barracks] >= 1 && canBuild(BWAPI::UnitTypes::Terran_Marine))
 		{
 			trainMarine();
 			return;
-		}
-	}
-
-	if (unitCount[BWAPI::UnitTypes::Terran_Refinery] < 1 && canBuild(BWAPI::UnitTypes::Terran_Refinery)) {
-		buildRefinery();
-		return;
-	}
-	else if (unitCount[BWAPI::UnitTypes::Terran_Refinery] >= 1) {
-		if (unitCount[BWAPI::UnitTypes::Terran_Barracks] < 1 && canBuild(BWAPI::UnitTypes::Terran_Barracks))
-		{
-			buildBarracks();
-			return;
-		}
-		else if (unitCount[BWAPI::UnitTypes::Terran_Barracks] >= 1 && unitCount[BWAPI::UnitTypes::Terran_Academy] < 1 && canBuild(BWAPI::UnitTypes::Terran_Academy)) {
-			buildAcademy();
-			return;
-		}
-		else if (unitCount[BWAPI::UnitTypes::Terran_Academy] >= 1 && unitCount[BWAPI::UnitTypes::Terran_Comsat_Station] < 1 && canBuild(BWAPI::UnitTypes::Terran_Comsat_Station))
-		{
-			BWAPI::Unit depot = getClosestDepot(startLocation);
-			if (depot && depot->canBuildAddon(BWAPI::UnitTypes::Terran_Comsat_Station)) {
-				buildComsatStation();
-				return;
-			}
-		}
-		else if (unitCount[BWAPI::UnitTypes::Terran_Academy] >= 1) {
-			upgradeResearchType(BWAPI::UpgradeTypes::U_238_Shells);
-
-			if (unitCount[BWAPI::UnitTypes::Terran_Barracks] < 4 && canBuild(BWAPI::UnitTypes::Terran_Barracks))
-			{
-				buildBarracks();
-				return;
-			}
 		}
 	}
 }
@@ -577,12 +583,42 @@ void UAlbertaBotModule::onUnitDestroy(BWAPI::Unit unit)
 		m_gameCommander.onUnitDestroy(unit);
 	}
 
-	if (unit->getType() == BWAPI::UnitTypes::Terran_Marine) {
+	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType() == BWAPI::UnitTypes::Terran_Marine) {
 		marineSquad.erase(unit);
 	}
 
-	if (unit->getType() == BWAPI::UnitTypes::Terran_Academy) {
+	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType() == BWAPI::UnitTypes::Terran_SCV) {
+		workers.erase(unit);
+	}
+
+	if (unit->getPlayer() == BWAPI::Broodwar->self() && (unit->getType().isBuilding() || unit->getType().isAddon())) {
+		auto finder = reservedBuildingPositions.find(unit->getTilePosition());
+		if (finder != reservedBuildingPositions.end()) {
+			reservedBuildingPositions.erase(finder);
+		}
+
+		if (unit->isCompleted()) {
+			completedUnitCount[unit->getType()] -= 1;
+		}
+		else {
+			unitCount[unit->getType()] -= 1;
+		}
+	}
+
+	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType() == BWAPI::UnitTypes::Terran_Barracks) {
+		barracks.erase(unit);
+	}
+
+	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType() == BWAPI::UnitTypes::Terran_Academy) {
 		academy = nullptr;
+	}
+
+	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType() == BWAPI::UnitTypes::Terran_Refinery) {
+		refinery = nullptr;
+	}
+
+	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType() == BWAPI::UnitTypes::Terran_Comsat_Station) {
+		comsat = nullptr;
 	}
 }
 
@@ -605,6 +641,23 @@ void UAlbertaBotModule::onUnitCreate(BWAPI::Unit unit)
 	{
 		m_gameCommander.onUnitCreate(unit);
 	}
+
+	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType() == BWAPI::UnitTypes::Terran_SCV) {
+		workers.insert(unit);
+	}
+
+	if (unit->getPlayer() == BWAPI::Broodwar->self() && (unit->getType().isBuilding() || unit->getType().isAddon()))
+	{
+		globalstate.reservedMinerals -= unit->getType().mineralPrice();
+		globalstate.reservedGas -= unit->getType().gasPrice();
+
+		unitCount[unit->getType()] += 1;
+
+		auto it = reservedBuildingPositions.find(unit->getTilePosition());
+		if (it != reservedBuildingPositions.end()) {
+			freeTiles(it->first, it->second.tileWidth(), it->second.tileHeight());
+		}
+	}
 }
 
 void UAlbertaBotModule::onUnitComplete(BWAPI::Unit unit)
@@ -614,18 +667,7 @@ void UAlbertaBotModule::onUnitComplete(BWAPI::Unit unit)
 		m_gameCommander.onUnitComplete(unit);
 	}
 
-	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType().isBuilding())
-	{
-		globalstate.reservedMinerals -= unit->getType().mineralPrice();
-		globalstate.reservedGas -= unit->getType().gasPrice();
-
-		auto it = reservedBuildingPositions.find(unit->getTilePosition());
-		if (it != reservedBuildingPositions.end()) {
-			freeTiles(it->first, it->second.tileWidth(), it->second.tileHeight());
-		}
-	}
-
-	if (unit->getType() == BWAPI::UnitTypes::Terran_Marine) {
+	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType() == BWAPI::UnitTypes::Terran_Marine) {
 		marineSquad.insert(unit);
 	}
 
@@ -641,8 +683,21 @@ void UAlbertaBotModule::onUnitComplete(BWAPI::Unit unit)
 		}
 	}
 
-	if (unit->getType() == BWAPI::UnitTypes::Terran_Academy) {
+	if (unit->getPlayer() == BWAPI::Broodwar->self() && (unit->getType().isBuilding() || unit->getType().isAddon()))
+	{
+		completedUnitCount[unit->getType()] += 1;
+
+		if (unit->getType() == BWAPI::UnitTypes::Terran_Barracks) {
+			barracks.insert(unit);
+		}
+	}
+
+	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType() == BWAPI::UnitTypes::Terran_Academy) {
 		academy = unit;
+	}
+
+	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType() == BWAPI::UnitTypes::Terran_Comsat_Station) {
+		comsat = unit;
 	}
 }
 
