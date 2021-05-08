@@ -43,24 +43,18 @@ public:
 std::unordered_set<BWAPI::Unit> marineSquad;
 std::unordered_set<BWAPI::Unit> workers;
 std::unordered_set<BWAPI::Unit> barracks;
+std::unordered_set<BWAPI::Unit> enemySet;
 std::unordered_map<BWAPI::TilePosition, BWAPI::UnitType, MyHashFunction> reservedBuildingPositions;
+std::map<BWAPI::UnitType, size_t> unitCount;
+std::map<BWAPI::UnitType, size_t> completedUnitCount;
+Grid<int> reserveMap;
+
 BWAPI::TilePosition startLocation;
 BWAPI::Position enemyLocation;
 BWAPI::Position rallyPoint;
-BWAPI::Unit academy;
-BWAPI::Unit comsat;
-BWAPI::Unit refinery;
 BWAPI::Unit depot;
-Grid<int> reserveMap;
-boolean beingAttacked = false;
-std::map<BWAPI::UnitType, size_t> unitCount;
-std::map<BWAPI::UnitType, size_t> completedUnitCount;
-std::unordered_set<BWAPI::Unit> assignedWorkers;
-bool isWorkerAssigned(BWAPI::Unit worker) {
-	return assignedWorkers.find(worker) != assignedWorkers.end();
-}
+
 int buildingSupplyDepotCount = 0;
-int buildingBarracksCount = 0;
 
 void reserveMinerals(int minerals)
 {
@@ -202,54 +196,11 @@ void sendMineralWorkers() {
 		{
 			for (const auto& unit : workers)
 			{
-				auto unitType = unit->getType();
 				if (!unit->isIdle()) {	
 					continue;
 				}
-				if (isWorkerAssigned(unit)) {
-					std::cout << "Error: reassign worker" << std::endl;
-					continue;
-				}
-				assignedWorkers.insert(unit);
 				Micro::SmartRightClick(unit, mineralField);
 			}
-		}
-	}
-}
-
-void sendGasWorkers(unsigned int targetWorkingCount) {
-	unsigned int gasWorkingCount = 0;
-	if (!depot)
-	{
-		return;
-	}
-
-	if (!refinery)
-	{
-		return;
-	}
-	gasWorkingCount = getGasCount();
-	for (const auto& unit : workers) {
-		if (gasWorkingCount == targetWorkingCount) {
-			break;
-		}
-
-		if (gasWorkingCount > targetWorkingCount) {
-			if (unit->isGatheringGas() && !unit->isCarryingGas()) {
-				unit->stop();
-				gasWorkingCount--;
-			}
-			continue;
-		}
-
-		if (gasWorkingCount < targetWorkingCount) {
-			if (unit->isCarryingGas() || unit->isGatheringGas() || unit->isConstructing() || unit->isAttacking() || unit->isRepairing()) {
-				continue;
-			}
-
-			Micro::SmartRightClick(unit, refinery);
-			gasWorkingCount++;
-			continue;
 		}
 	}
 }
@@ -263,17 +214,12 @@ void buildBuilding(BWAPI::UnitType buildingType)
 			continue;
 		}
 
-		BWAPI::TilePosition targetBuildLocation = BWAPI::Broodwar->getBuildLocation(buildingType, unit->getTilePosition());
+		const BWAPI::TilePosition targetBuildLocation = BWAPI::Broodwar->getBuildLocation(buildingType, unit->getTilePosition());
 		if (!canBuildHere(targetBuildLocation, buildingType, unit)) {
-			continue;
-		}
-		if (isWorkerAssigned(unit)) {
-			std::cout << "Error: reassign worker" << std::endl;
 			continue;
 		}
 		if (!unit->build(buildingType, targetBuildLocation))
 		{
-			assignedWorkers.insert(unit);
 			auto lastErr = BWAPI::Broodwar->getLastError();
 		}
 		else
@@ -284,29 +230,6 @@ void buildBuilding(BWAPI::UnitType buildingType)
 			reserveGas(buildingType.gasPrice());
 			break;
 		}
-	}
-}
-
-void scanSweep(BWAPI::Position position) {
-	if (comsat != nullptr) {
-		comsat->useTech(BWAPI::TechTypes::Scanner_Sweep, position);
-	}
-}
-
-void repair(BWAPI::Unit building) {
-	for (const auto& unit : workers)
-	{
-		if (unit->isConstructing() || unit->isCarryingGas() || unit->isCarryingMinerals() || unit->isRepairing() || unit->isAttacking())
-		{
-			continue;
-		}
-
-		if (unit->canRepair(building)) {
-			if (!unit->repair(building)) {
-				auto lastErr = BWAPI::Broodwar->getLastError();
-			}
-		}
-		break;
 	}
 }
 
@@ -334,27 +257,6 @@ void buildEngineeringBay()
 void buildAcademy()
 {
 	buildBuilding(BWAPI::UnitTypes::Terran_Academy);
-}
-
-void buildComsatStation() {
-	BWAPI::Unit depot = BWAPI::Broodwar->getClosestUnit(BWAPI::Position(startLocation.x, startLocation.y), BWAPI::Filter::IsResourceDepot);
-	if (depot) {// check if pMain is valid
-		depot->buildAddon(BWAPI::UnitTypes::Terran_Comsat_Station);
-		reserveGas(BWAPI::UnitTypes::Terran_Comsat_Station.gasPrice());
-		reserveMinerals(BWAPI::UnitTypes::Terran_Comsat_Station.mineralPrice());
-	}
-}
-
-void upgradeResearchType(BWAPI::UpgradeType researchType) {
-	const int researchLevel = BWAPI::Broodwar->self()->getUpgradeLevel(researchType);
-	if (researchLevel < BWAPI::Broodwar->self()->getMaxUpgradeLevel(researchType)
-		&& !BWAPI::Broodwar->self()->isUpgrading(researchType)
-		&& getFreeMinerals() > researchType.mineralPrice()
-		&& getFreeGas() > researchType.gasPrice()) {
-		if (academy && academy->canUpgrade(researchType)) {
-			academy->upgrade(researchType);
-		}
-	}
 }
 
 UAlbertaBotModule::UAlbertaBotModule()
@@ -400,8 +302,6 @@ void UAlbertaBotModule::onStart()
 		}
 	}
 
-	//Global::Map().saveMapToFile("map.txt");
-
 	startLocation = BWAPI::Broodwar->self()->getStartLocation();
 	// TODO: figure out how to find enemy location. Hardcode for now.
 	for (const auto& startPosition : BWAPI::Broodwar->getStartLocations()) {
@@ -431,20 +331,14 @@ void UAlbertaBotModule::onEnd(bool isWinner)
 	globalstate.miningGas = 0;
 
 	marineSquad.clear();
+	workers.clear();
+	barracks.clear();
+	enemySet.clear();
 	reservedBuildingPositions.clear();
-	Grid<int> reserveMap;
 }
 
-int actionToken = 0;
-const int actionTokenLimit = 10;
 int recycleBuildingCostFrame = 200;
 const int recycleBuildingCostPeriod = 200;
-
-// TODO: use the buildingQueue state variables to track this
-bool hasOrderedBuildRefinery = false;
-bool hasOrderedBuildAcacemy = false;
-
-std::unordered_set<BWAPI::Unit> enemySet;
 
 void UAlbertaBotModule::onFrame()
 {
@@ -457,23 +351,14 @@ void UAlbertaBotModule::onFrame()
 	const char green = '\x07';
 	const char white = '\x04';
 
-	if (refinery == nullptr) {
-		refinery = getClosestGasRefinery(startLocation);
-		if (refinery) {
-			unitCount[BWAPI::UnitTypes::Terran_Refinery] = 1;
-			completedUnitCount[BWAPI::UnitTypes::Terran_Refinery] = 1;
-			globalstate.reservedMinerals -= BWAPI::UnitTypes::Terran_Refinery.mineralPrice();
-			globalstate.reservedGas -= BWAPI::UnitTypes::Terran_Refinery.gasPrice();
-		}
-	}
-
 	const auto supplyTotal = BWAPI::Broodwar->self()->supplyTotal();
 	const auto supplyUsed = BWAPI::Broodwar->self()->supplyUsed();
 	const auto freeMinerals = getFreeMinerals();
 	const auto freeGas = getFreeGas();
 	float testParameter = (float)supplyUsed / (float)supplyTotal;
+	// Draw state information
 	BWAPI::Broodwar->drawTextScreen(10, 5, "%cFree minerals: %d, Free gas: %d, Supply used: %d, Supply total: %d, Test parameter: %f", red, getFreeMinerals(), getFreeGas(), supplyUsed, supplyTotal, testParameter);
-	BWAPI::Broodwar->drawTextScreen(10, 20, "%cBuilding supply depot: %d, actionToken: %d, marine count: %d", red, buildingSupplyDepotCount, actionToken, marineSquad.size());
+	BWAPI::Broodwar->drawTextScreen(10, 20, "%cBuilding supply depot: %d, marine count: %d", red, buildingSupplyDepotCount, marineSquad.size());
 	auto lastErr = BWAPI::Broodwar->getLastError();
 	BWAPI::Broodwar->drawTextScreen(10, 35, "%clastErr: %s", red, lastErr.c_str());
 
@@ -485,10 +370,6 @@ void UAlbertaBotModule::onFrame()
 	rallyPoint = BWAPI::Position(startLoc.x * 0.8, startLoc.y * 0.8) + BWAPI::Position(enemyLocation.x * 0.2, enemyLocation.y * 0.2);
 	BWAPI::Broodwar->drawCircleMap(rallyPoint, 10, BWAPI::Colors::Yellow);
 
-	if (lastErr.toString() != "None" && lastErr.toString() != "Invalid_Parameter" && lastErr.toString() != "Insufficient_Supply") {
-		auto s = lastErr.toString();
-		std::cout << "Last error: " << s << std::endl;
-	}
 	for (const auto& test : reservedBuildingPositions) {
 		BWAPI::Position position1 = BWAPI::Position(test.first);
 		BWAPI::Position position2 = BWAPI::Position(BWAPI::TilePosition(test.first.x + test.second.tileWidth(), test.first.y + test.second.tileHeight()));
@@ -496,9 +377,8 @@ void UAlbertaBotModule::onFrame()
 	}
 	auto race = BWAPI::Broodwar->self()->getRace();
 
-	// begin: Necessary utilities - run on every frame
-	assignedWorkers.clear();
 	sendMineralWorkers();
+
 	// Recycle the building cost every 200 frames to restore resources and recycle reserved tiles
 	if (recycleBuildingCostFrame == 0) {
 		const auto& units = BWAPI::Broodwar->self()->getUnits();
@@ -527,7 +407,6 @@ void UAlbertaBotModule::onFrame()
 		recycleBuildingCostFrame--;
 	}
 
-	// TODO: figure out map based parameter
 	if (workers.size() < 18 && canBuild(race.getWorker()))
 	{
 		trainSCV(BWAPI::UnitTypes::Terran_SCV);
@@ -542,62 +421,11 @@ void UAlbertaBotModule::onFrame()
 		buildSupplyDepot();
 		buildingSupplyDepotCount++;
 	}
-	// end
-
-	// begin development actions, only check/perform one type per frame
-	switch (actionToken) {
-	case 0:
-		if (!hasOrderedBuildRefinery && completedUnitCount[BWAPI::UnitTypes::Terran_Barracks] >= 2 && canBuild(BWAPI::UnitTypes::Terran_Refinery)) {
-			buildRefinery();
-			hasOrderedBuildRefinery = true;
-		}
-		break;
-	case 1:
-		if (completedUnitCount[BWAPI::UnitTypes::Terran_Barracks] < 4 && canBuild(BWAPI::UnitTypes::Terran_Barracks))
-		{
-			buildBarracks();
-		}
-		break;
-	case 2:
-		if (!hasOrderedBuildAcacemy && completedUnitCount[BWAPI::UnitTypes::Terran_Barracks] >= 2 && canBuild(BWAPI::UnitTypes::Terran_Academy)) {
-			buildAcademy();
-			hasOrderedBuildAcacemy = true;
-		}
-		break;
-	case 3:
-		if (completedUnitCount[BWAPI::UnitTypes::Terran_Academy] >= 1 && unitCount[BWAPI::UnitTypes::Terran_Comsat_Station] < 1 && canBuild(BWAPI::UnitTypes::Terran_Comsat_Station)) {
-			BWAPI::Unit depot = getClosestDepot(startLocation);
-			if (depot && depot->canBuildAddon(BWAPI::UnitTypes::Terran_Comsat_Station)) {
-				buildComsatStation();
-			}
-		}
-		break;
-	case 4:
-		// if (getFreeMinerals() > 400 && canBuild(BWAPI::UnitTypes::Terran_Barracks))
-		// {
-		//	buildBarracks();
-		//}
-		break;
-	case 5:
-		if (completedUnitCount[BWAPI::UnitTypes::Terran_Academy] == 1 && getFreeGas() < 50) {
-			sendGasWorkers(1);
-		}
-		else {
-			sendGasWorkers(0);
-		}
-		break;
-	case 6:
-	case 7:
-	case 8:
-		break;
-	case 9:
-
-	default:
-		break;
+	
+	if (completedUnitCount[BWAPI::UnitTypes::Terran_Barracks] < 4 && canBuild(BWAPI::UnitTypes::Terran_Barracks))
+	{
+		buildBarracks();
 	}
-	actionToken = (actionToken + 1) % actionTokenLimit;
-
-	// Battle actions
 }
 
 void UAlbertaBotModule::onUnitDestroy(BWAPI::Unit unit)
@@ -633,18 +461,6 @@ void UAlbertaBotModule::onUnitDestroy(BWAPI::Unit unit)
 		barracks.erase(unit);
 	}
 
-	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType() == BWAPI::UnitTypes::Terran_Academy) {
-		academy = nullptr;
-	}
-
-	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType() == BWAPI::UnitTypes::Terran_Refinery) {
-		refinery = nullptr;
-	}
-
-	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType() == BWAPI::UnitTypes::Terran_Comsat_Station) {
-		comsat = nullptr;
-	}
-
 	if (BWAPI::Broodwar->enemies().find(unit->getPlayer()) != BWAPI::Broodwar->enemies().end()) {
 		enemySet.erase(unit);
 	}
@@ -662,16 +478,6 @@ void UAlbertaBotModule::onSendText(std::string text)
 {
 	// ParseUtils::ParseTextCommand(text);
 	BWAPI::Broodwar->sendText(text.c_str());
-}
-
-void UAlbertaBotModule::onReceiveText(std::string text) {
-	std::cout << "Received in game text " << text << std::endl;
-}
-
-void UAlbertaBotModule::onUnitEvade(BWAPI::Unit unit)
-{
-	std::cout << "Receive unit evade event" << std::endl;
-	std::cout << "Unit is " << unit->getType().c_str() << std::endl;
 }
 
 void UAlbertaBotModule::onUnitCreate(BWAPI::Unit unit)
@@ -735,14 +541,6 @@ void UAlbertaBotModule::onUnitComplete(BWAPI::Unit unit)
 		if (unit->getType() == BWAPI::UnitTypes::Terran_Barracks) {
 			barracks.insert(unit);
 		}
-	}
-
-	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType() == BWAPI::UnitTypes::Terran_Academy) {
-		academy = unit;
-	}
-
-	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType() == BWAPI::UnitTypes::Terran_Comsat_Station) {
-		comsat = unit;
 	}
 }
 

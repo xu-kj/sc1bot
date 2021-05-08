@@ -88,9 +88,6 @@ void UAlbertaBot_PlayGame()
 				bot.onSendText(e.getText());
 				break;
 			}
-			case BWAPI::EventType::ReceiveText:
-				bot.onReceiveText(e.getText());
-				break;
 			}
 		}
 
