@@ -26,13 +26,12 @@ struct State
 {
 	int reservedMinerals = 400;
 	int reservedGas = 0;
-	int scv = 0;
-	int marine = 0;
 	int miningMinerals = 0;
 	int miningGas = 0;
 } globalstate;
 
-class MyHashFunction {
+class MyHashFunction
+{
 public:
 	size_t operator()(const BWAPI::TilePosition& p) const
 	{
@@ -78,20 +77,23 @@ int getFreeGas()
 
 BWAPI::Unit getClosestDepot(BWAPI::TilePosition startPosition)
 {
-	return  BWAPI::Broodwar->getClosestUnit(BWAPI::Position(startPosition), BWAPI::Filter::IsResourceDepot && BWAPI::Filter::IsCompleted && BWAPI::Filter::IsOwned);
+	return BWAPI::Broodwar->getClosestUnit(BWAPI::Position(startPosition), BWAPI::Filter::IsResourceDepot && BWAPI::Filter::IsCompleted && BWAPI::Filter::IsOwned);
 }
 
 BWAPI::Unit getClosestMineralField(BWAPI::TilePosition startPosition)
 {
-	return  BWAPI::Broodwar->getClosestUnit(BWAPI::Position(startPosition), BWAPI::Filter::IsMineralField);
+	return BWAPI::Broodwar->getClosestUnit(BWAPI::Position(startPosition), BWAPI::Filter::IsMineralField);
 }
 
-BWAPI::Unit getClosestGasRefinery(BWAPI::TilePosition startPosition) {
-	return  BWAPI::Broodwar->getClosestUnit(BWAPI::Position(startPosition), BWAPI::Filter::IsRefinery && BWAPI::Filter::IsCompleted && BWAPI::Filter::IsOwned);
+BWAPI::Unit getClosestGasRefinery(BWAPI::TilePosition startPosition)
+{
+	return BWAPI::Broodwar->getClosestUnit(BWAPI::Position(startPosition), BWAPI::Filter::IsRefinery && BWAPI::Filter::IsCompleted && BWAPI::Filter::IsOwned);
 }
 
-boolean canBuild(BWAPI::UnitType type) {
-	if (getFreeMinerals() >= type.mineralPrice() && getFreeGas() >= type.gasPrice()) {
+bool canBuild(BWAPI::UnitType type)
+{
+	if (getFreeMinerals() >= type.mineralPrice() && getFreeGas() >= type.gasPrice())
+	{
 		return true;
 	}
 
@@ -100,7 +102,8 @@ boolean canBuild(BWAPI::UnitType type) {
 
 void trainSCV(BWAPI::UnitType workerType)
 {
-	if (depot && depot->isIdle() && !depot->train(workerType)) {
+	if (depot && depot->isIdle() && !depot->train(workerType))
+	{
 		auto lastErr = BWAPI::Broodwar->getLastError();
 	}
 }
@@ -109,10 +112,12 @@ void trainMarine()
 {
 	for (const auto& unit : barracks)
 	{
-		if (!canBuild(BWAPI::UnitTypes::Terran_Marine)) {
+		if (!canBuild(BWAPI::UnitTypes::Terran_Marine))
+		{
 			break;
 		}
-		if (!unit->isIdle()) {
+		if (!unit->isIdle())
+		{
 			continue;
 		}
 		if (!unit->train(BWAPI::UnitTypes::Terran_Marine))
@@ -122,15 +127,15 @@ void trainMarine()
 	}
 }
 
-
-boolean canBuildHere(BWAPI::TilePosition position, BWAPI::UnitType buildType, BWAPI::Unit worker)
+bool canBuildHere(BWAPI::TilePosition position, BWAPI::UnitType buildType, BWAPI::Unit worker)
 {
 	if (!BWAPI::Broodwar->canBuildHere(position, buildType, worker))
 	{
 		return false;
 	}
 
-	if (position.x <= 1 || position.y <= 1 || position.x + buildType.tileWidth() >= (int)reserveMap.width() || position.y + buildType.tileHeight() >= (int)reserveMap.height()) {
+	if (position.x <= 1 || position.y <= 1 || position.x + buildType.tileWidth() >= (int)reserveMap.width() || position.y + buildType.tileHeight() >= (int)reserveMap.height())
+	{
 		return false;
 	}
 
@@ -149,14 +154,13 @@ boolean canBuildHere(BWAPI::TilePosition position, BWAPI::UnitType buildType, BW
 	return true;
 }
 
-
 void reserveTiles(BWAPI::TilePosition position, int width, int height)
 {
 	auto topWidth = position.x + width + 1;
 	auto topHeight = position.y + height + 1;
 	for (int x = position.x - 1; x < topWidth && x < (int)reserveMap.width(); x++)
 	{
-		for (int y = position.y -1; y < topHeight && y < (int)reserveMap.height(); y++)
+		for (int y = position.y - 1; y < topHeight && y < (int)reserveMap.height(); y++)
 		{
 			reserveMap.set(x, y, 1);
 		}
@@ -176,19 +180,22 @@ void freeTiles(BWAPI::TilePosition position, int width, int height)
 	}
 }
 
-
-int getGasCount() {
+int getGasCount()
+{
 	const auto& units = BWAPI::Broodwar->self()->getUnits();
 	int miningGasCount = 0;
-	for (const auto& unit : workers) {
-		if (unit->isCarryingGas() || unit->isGatheringGas()) {
+	for (const auto& unit : workers)
+	{
+		if (unit->isCarryingGas() || unit->isGatheringGas())
+		{
 			miningGasCount++;
 		}
 	}
 	return miningGasCount;
 }
 
-void sendMineralWorkers() {
+void sendMineralWorkers()
+{
 	if (depot)
 	{
 		BWAPI::Unit mineralField = getClosestMineralField(depot->getTilePosition());
@@ -196,7 +203,8 @@ void sendMineralWorkers() {
 		{
 			for (const auto& unit : workers)
 			{
-				if (!unit->isIdle()) {	
+				if (!unit->isIdle())
+				{
 					continue;
 				}
 				Micro::SmartRightClick(unit, mineralField);
@@ -215,7 +223,8 @@ void buildBuilding(BWAPI::UnitType buildingType)
 		}
 
 		const BWAPI::TilePosition targetBuildLocation = BWAPI::Broodwar->getBuildLocation(buildingType, unit->getTilePosition());
-		if (!canBuildHere(targetBuildLocation, buildingType, unit)) {
+		if (!canBuildHere(targetBuildLocation, buildingType, unit))
+		{
 			continue;
 		}
 		if (!unit->build(buildingType, targetBuildLocation))
@@ -304,8 +313,10 @@ void UAlbertaBotModule::onStart()
 
 	startLocation = BWAPI::Broodwar->self()->getStartLocation();
 	// TODO: figure out how to find enemy location. Hardcode for now.
-	for (const auto& startPosition : BWAPI::Broodwar->getStartLocations()) {
-		if (startPosition != startLocation) {
+	for (const auto& startPosition : BWAPI::Broodwar->getStartLocations())
+	{
+		if (startPosition != startLocation)
+		{
 			enemyLocation = BWAPI::Position(startPosition);
 			break;
 		}
@@ -325,8 +336,6 @@ void UAlbertaBotModule::onEnd(bool isWinner)
 
 	globalstate.reservedMinerals = 400;
 	globalstate.reservedGas = 0;
-	globalstate.scv = 0;
-	globalstate.marine = 0;
 	globalstate.miningMinerals = 0;
 	globalstate.miningGas = 0;
 
@@ -362,7 +371,8 @@ void UAlbertaBotModule::onFrame()
 	auto lastErr = BWAPI::Broodwar->getLastError();
 	BWAPI::Broodwar->drawTextScreen(10, 35, "%clastErr: %s", red, lastErr.c_str());
 
-	for (auto& enemy : enemySet) {
+	for (auto& enemy : enemySet)
+	{
 		BWAPI::Broodwar->drawBoxMap(enemy->getLeft(), enemy->getTop(), enemy->getRight(), enemy->getBottom(), BWAPI::Colors::Red);
 	}
 
@@ -370,7 +380,8 @@ void UAlbertaBotModule::onFrame()
 	rallyPoint = BWAPI::Position(startLoc.x * 0.8, startLoc.y * 0.8) + BWAPI::Position(enemyLocation.x * 0.2, enemyLocation.y * 0.2);
 	BWAPI::Broodwar->drawCircleMap(rallyPoint, 10, BWAPI::Colors::Yellow);
 
-	for (const auto& test : reservedBuildingPositions) {
+	for (const auto& test : reservedBuildingPositions)
+	{
 		BWAPI::Position position1 = BWAPI::Position(test.first);
 		BWAPI::Position position2 = BWAPI::Position(BWAPI::TilePosition(test.first.x + test.second.tileWidth(), test.first.y + test.second.tileHeight()));
 		BWAPI::Broodwar->drawBoxMap(position1.x, position1.y, position2.x, position2.y, BWAPI::Colors::Green);
@@ -380,19 +391,24 @@ void UAlbertaBotModule::onFrame()
 	sendMineralWorkers();
 
 	// Recycle the building cost every 200 frames to restore resources and recycle reserved tiles
-	if (recycleBuildingCostFrame == 0) {
+	if (recycleBuildingCostFrame == 0)
+	{
 		const auto& units = BWAPI::Broodwar->self()->getUnits();
 		int realBuildingSupplyDepotCount = 0;
 		int realBuildingBarracksCount = 0;
-		for (auto& unit : units) {
-			switch (unit->getType()) {
+		for (const auto& unit : units)
+		{
+			switch (unit->getType())
+			{
 			case BWAPI::UnitTypes::Terran_Supply_Depot:
-				if (unit->isBeingConstructed()) {
+				if (unit->isBeingConstructed())
+				{
 					realBuildingSupplyDepotCount++;
 				}
 				break;
 			case BWAPI::UnitTypes::Terran_Barracks:
-				if (unit->isBeingConstructed()) {
+				if (unit->isBeingConstructed())
+				{
 					realBuildingBarracksCount++;
 				}
 				break;
@@ -403,7 +419,8 @@ void UAlbertaBotModule::onFrame()
 		buildingSupplyDepotCount = realBuildingSupplyDepotCount;
 		recycleBuildingCostFrame = recycleBuildingCostPeriod;
 	}
-	else {
+	else
+	{
 		recycleBuildingCostFrame--;
 	}
 
@@ -421,7 +438,7 @@ void UAlbertaBotModule::onFrame()
 		buildSupplyDepot();
 		buildingSupplyDepotCount++;
 	}
-	
+
 	if (completedUnitCount[BWAPI::UnitTypes::Terran_Barracks] < 4 && canBuild(BWAPI::UnitTypes::Terran_Barracks))
 	{
 		buildBarracks();
@@ -435,33 +452,41 @@ void UAlbertaBotModule::onUnitDestroy(BWAPI::Unit unit)
 		m_gameCommander.onUnitDestroy(unit);
 	}
 
-	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType() == BWAPI::UnitTypes::Terran_Marine) {
+	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType() == BWAPI::UnitTypes::Terran_Marine)
+	{
 		marineSquad.erase(unit);
 	}
 
-	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType() == BWAPI::UnitTypes::Terran_SCV) {
+	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType() == BWAPI::UnitTypes::Terran_SCV)
+	{
 		workers.erase(unit);
 	}
 
-	if (unit->getPlayer() == BWAPI::Broodwar->self() && (unit->getType().isBuilding() || unit->getType().isAddon())) {
+	if (unit->getPlayer() == BWAPI::Broodwar->self() && (unit->getType().isBuilding() || unit->getType().isAddon()))
+	{
 		auto finder = reservedBuildingPositions.find(unit->getTilePosition());
-		if (finder != reservedBuildingPositions.end()) {
+		if (finder != reservedBuildingPositions.end())
+		{
 			reservedBuildingPositions.erase(finder);
 		}
 
-		if (unit->isCompleted()) {
+		if (unit->isCompleted())
+		{
 			completedUnitCount[unit->getType()] -= 1;
 		}
-		else {
+		else
+		{
 			unitCount[unit->getType()] -= 1;
 		}
 	}
 
-	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType() == BWAPI::UnitTypes::Terran_Barracks) {
+	if (unit->getPlayer() == BWAPI::Broodwar->self() && unit->getType() == BWAPI::UnitTypes::Terran_Barracks)
+	{
 		barracks.erase(unit);
 	}
 
-	if (BWAPI::Broodwar->enemies().find(unit->getPlayer()) != BWAPI::Broodwar->enemies().end()) {
+	if (BWAPI::Broodwar->enemies().find(unit->getPlayer()) != BWAPI::Broodwar->enemies().end())
+	{
 		enemySet.erase(unit);
 	}
 }
@@ -495,7 +520,8 @@ void UAlbertaBotModule::onUnitCreate(BWAPI::Unit unit)
 		unitCount[unit->getType()] += 1;
 
 		auto it = reservedBuildingPositions.find(unit->getTilePosition());
-		if (it != reservedBuildingPositions.end()) {
+		if (it != reservedBuildingPositions.end())
+		{
 			freeTiles(it->first, it->second.tileWidth(), it->second.tileHeight());
 		}
 	}
@@ -508,27 +534,35 @@ void UAlbertaBotModule::onUnitComplete(BWAPI::Unit unit)
 		m_gameCommander.onUnitComplete(unit);
 	}
 
-	if (unit->getPlayer() == BWAPI::Broodwar->self()) {
+	if (unit->getPlayer() == BWAPI::Broodwar->self())
+	{
 
-		if (unit->getType() == BWAPI::UnitTypes::Terran_Marine) {
+		if (unit->getType() == BWAPI::UnitTypes::Terran_Marine)
+		{
 			marineSquad.insert(unit);
 			Micro::SmartAttackMove(unit, rallyPoint);
 		}
-		else if (unit->getType() == BWAPI::UnitTypes::Terran_Supply_Depot) {
+		else if (unit->getType() == BWAPI::UnitTypes::Terran_Supply_Depot)
+		{
 			buildingSupplyDepotCount--;
 		}
-		if (unit->getType() == BWAPI::UnitTypes::Terran_SCV) {
+		if (unit->getType() == BWAPI::UnitTypes::Terran_SCV)
+		{
 			workers.insert(unit);
 		}
 	}
 
 	BWAPI::Unit nextUnit = BWAPI::Broodwar->getClosestUnit(BWAPI::Position(enemyLocation), BWAPI::Filter::IsEnemy);
-	if (marineSquad.size() >= 30) {
-		for (auto it = marineSquad.begin(); it != marineSquad.end(); it++) {
-			if (nextUnit) {
+	if (marineSquad.size() >= 30)
+	{
+		for (auto it = marineSquad.begin(); it != marineSquad.end(); it++)
+		{
+			if (nextUnit)
+			{
 				Micro::SmartAttackMove(*it, nextUnit->getPosition());
 			}
-			else {
+			else
+			{
 				Micro::SmartAttackMove(*it, enemyLocation);
 			}
 		}
@@ -538,7 +572,8 @@ void UAlbertaBotModule::onUnitComplete(BWAPI::Unit unit)
 	{
 		completedUnitCount[unit->getType()] += 1;
 
-		if (unit->getType() == BWAPI::UnitTypes::Terran_Barracks) {
+		if (unit->getType() == BWAPI::UnitTypes::Terran_Barracks)
+		{
 			barracks.insert(unit);
 		}
 	}
@@ -551,7 +586,8 @@ void UAlbertaBotModule::onUnitShow(BWAPI::Unit unit)
 		m_gameCommander.onUnitShow(unit);
 	}
 
-	if (BWAPI::Broodwar->enemies().find(unit->getPlayer()) != BWAPI::Broodwar->enemies().end()) {
+	if (BWAPI::Broodwar->enemies().find(unit->getPlayer()) != BWAPI::Broodwar->enemies().end())
+	{
 		enemySet.insert(unit);
 	}
 }
@@ -562,7 +598,8 @@ void UAlbertaBotModule::onUnitHide(BWAPI::Unit unit)
 	{
 		m_gameCommander.onUnitHide(unit);
 	}
-	if (BWAPI::Broodwar->enemies().find(unit->getPlayer()) != BWAPI::Broodwar->enemies().end()) {
+	if (BWAPI::Broodwar->enemies().find(unit->getPlayer()) != BWAPI::Broodwar->enemies().end())
+	{
 		enemySet.erase(unit);
 	}
 }
