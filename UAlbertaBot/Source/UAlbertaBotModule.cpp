@@ -349,6 +349,71 @@ void UAlbertaBotModule::onEnd(bool isWinner)
 int recycleBuildingCostFrame = 200;
 const int recycleBuildingCostPeriod = 200;
 
+void Anotate(const BWAPI::Unit& unit)
+{
+	const auto& owner = unit->getPlayer();
+	const auto& type = unit->getType();
+
+	BWAPI::Broodwar->drawBoxMap(unit->getLeft(), unit->getTop(), unit->getRight(), unit->getBottom(), owner->getColor());
+
+	std::ostringstream oss;
+
+	oss << static_cast<char>(BWAPI::Text::Default); // format for the text output
+
+	// debug data
+	//oss << "ID: " << unit->getID() << "\n";
+
+	// common status
+	if (type.maxHitPoints() > 0 && unit->getHitPoints() < type.maxHitPoints())
+	{
+		oss << "Health: " << unit->getHitPoints() << "/" << type.maxHitPoints() << "\n";
+	}
+	if (type.maxShields() > 0 && unit->getShields() < type.maxShields())
+	{
+		oss << "Shield: " << unit->getShields() << "/" << type.maxShields() << "\n";
+	}
+	if (type.maxEnergy() > 0 && unit->getEnergy() < type.maxEnergy())
+	{
+		oss << "Energy: " << unit->getEnergy() << "/" << type.maxEnergy() << "\n";
+	}
+
+	// owner status
+	if (owner != BWAPI::Broodwar->self())
+	{
+		//oss << "Owner: " << owner->getID() << "\n";
+		//owner->getRace();
+
+		//https://en.cppreference.com/w/cpp/io/manip/boolalpha
+		//oss << std::boolalpha;
+		// when isVisible() is true and isDetected() is false, the unit is only partially visible
+		// and requires a detector in order to be targetted
+		if (unit->isVisible(BWAPI::Broodwar->self()) && !unit->isDetected())
+		{
+			oss << "invisible!" << "\n";
+		}
+	}
+
+	BWAPI::Broodwar->drawTextMap(unit->getRight() + 5, unit->getTop(), oss.str().c_str());
+
+	// combat data
+	if (unit->isSelected())
+	{
+		BWAPI::Broodwar->drawCircleMap(unit->getPosition(), type.groundWeapon().minRange(), BWAPI::Colors::Red);
+		BWAPI::Broodwar->drawCircleMap(unit->getPosition(), type.groundWeapon().maxRange(), BWAPI::Colors::Red);
+
+		if (type.airWeapon() != type.groundWeapon())
+		{
+			BWAPI::Broodwar->drawCircleMap(unit->getPosition(), type.airWeapon().minRange(), BWAPI::Colors::Blue);
+			BWAPI::Broodwar->drawCircleMap(unit->getPosition(), type.airWeapon().maxRange(), BWAPI::Colors::Blue);
+		}
+
+		//unit->getUnitsInWeaponRange();
+	}
+
+	// unit specific
+	//unit->getSpiderMineCount();
+}
+
 void UAlbertaBotModule::onFrame()
 {
 	if (BWAPI::Broodwar->getFrameCount() > 100000)
@@ -371,9 +436,13 @@ void UAlbertaBotModule::onFrame()
 	auto lastErr = BWAPI::Broodwar->getLastError();
 	BWAPI::Broodwar->drawTextScreen(10, 35, "%clastErr: %s", red, lastErr.c_str());
 
-	for (auto& enemy : enemySet)
+	for (const auto& enemy : enemySet)
 	{
-		BWAPI::Broodwar->drawBoxMap(enemy->getLeft(), enemy->getTop(), enemy->getRight(), enemy->getBottom(), BWAPI::Colors::Red);
+		Anotate(enemy);
+	}
+	for (const auto& marine : marineSquad)
+	{
+		Anotate(marine);
 	}
 
 	auto startLoc = BWAPI::Position(startLocation);
@@ -598,6 +667,7 @@ void UAlbertaBotModule::onUnitHide(BWAPI::Unit unit)
 	{
 		m_gameCommander.onUnitHide(unit);
 	}
+
 	if (BWAPI::Broodwar->enemies().find(unit->getPlayer()) != BWAPI::Broodwar->enemies().end())
 	{
 		enemySet.erase(unit);
